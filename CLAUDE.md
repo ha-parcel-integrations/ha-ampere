@@ -205,14 +205,6 @@ loop (one bad parcel doesn't fail the poll) but **not** around the whole update
 anything with a parcel list or `raw`. Over-redact diagnostics — they get pasted
 into public issues.
 
-## Tests on Windows
-
-`tests/conftest.py` carries two Windows-only shims (no-ops elsewhere):
-`disable_socket` is neutralised (Windows event loops need AF_INET socketpairs;
-the 127.0.0.1 allowlist stays) and HA's `AsyncResolver` is swapped for
-`ThreadedResolver` (aiodns refuses the Proactor loop). Do not remove them
-"because CI passes" — CI is Linux, development is Windows.
-
 ## Running tests
 
 ```
