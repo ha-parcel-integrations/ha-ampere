@@ -1,0 +1,153 @@
+{
+  "title": "Ampère",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ampère instellen",
+        "description": "Ampère volgen heeft geen account nodig — de hub wordt meteen aangemaakt. Voeg daarna een pakket toe via het Configureren-menu van de integratie."
+      },
+      "reauth_confirm": {
+        "title": "Ampère-sessie verlopen",
+        "description": "Ampère accepteert een van de opgeslagen trackingsessies van deze hub niet meer. Bevestig om opnieuw te verbinden met de trackinglink waarmee dit pakket oorspronkelijk is toegevoegd — de e-mail hoeft er niet opnieuw bij. Is niet duidelijk om welk pakket het gaat, dan verschijnt hieronder een keuzelijst.",
+        "data": {
+          "parcel_token": "Voor welk pakket is dit?"
+        }
+      }
+    },
+    "error": {
+      "invalid_link": "De opgeslagen trackinglink van dit pakket werkt niet meer. Verwijder het pakket en voeg het opnieuw toe met een nieuwe link uit een nieuwe e-mail.",
+      "cannot_connect": "Kon Ampère niet bereiken. Probeer het opnieuw."
+    },
+    "abort": {
+      "already_configured": "Ampère is al ingesteld.",
+      "reauth_successful": "Ampère is opnieuw verbonden.",
+      "no_parcels": "Deze hub heeft geen gevolgde pakketten om opnieuw te verbinden."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ampère-opties",
+        "menu_options": {
+          "settings": "Instellingen",
+          "add_parcel": "Een pakket volgen",
+          "remove_parcel": "Stoppen met een pakket volgen"
+        }
+      },
+      "add_parcel": {
+        "title": "Een pakket volgen",
+        "description": "Plak de trackinglink uit de verzendbevestiging van dát pakket van bol.com.",
+        "data": {
+          "tracking_link": "Trackinglink"
+        }
+      },
+      "remove_parcel": {
+        "title": "Stoppen met een pakket volgen",
+        "data": {
+          "parcel_token": "Pakket"
+        }
+      },
+      "settings": {
+        "title": "Ampère-opties",
+        "sections": {
+          "delivered": {
+            "name": "Bezorgde pakketten",
+            "data": {
+              "delivered_filter_type": "Filteren op",
+              "delivered_filter_amount": "Aantal"
+            },
+            "data_description": {
+              "delivered_filter_type": "Toon bezorgde pakketten van de laatste X dagen, of beperk tot de X meest recente.",
+              "delivered_filter_amount": "Aantal dagen of pakketten om te tonen."
+            }
+          },
+          "history": {
+            "name": "Pakketgeschiedenis",
+            "data": {
+              "include_history": "Statusgeschiedenis toevoegen"
+            },
+            "data_description": {
+              "include_history": "Voegt per pakket een history-attribuut toe met elke statusupdate (tijdstip, status, originele tekst). Standaard uit."
+            }
+          },
+          "polling": {
+            "name": "Verversen",
+            "data": {
+              "refresh_interval": "Ververs elke"
+            },
+            "data_description": {
+              "refresh_interval": "Hoe vaak de integratie Ampère controleert op pakketupdates. Een langzamer interval is vriendelijker voor de API van Ampère; de standaard van 30 minuten is ruim voldoende voor de meeste pakketten."
+            }
+          }
+        }
+      }
+    },
+    "abort": {
+      "already_tracked": "Dat pakket wordt al gevolgd, in deze of een andere hub.",
+      "parcel_added": "Pakket toegevoegd.",
+      "parcel_removed": "Pakket verwijderd.",
+      "no_parcels": "Deze hub heeft geen gevolgde pakketten om te verwijderen."
+    },
+    "error": {
+      "invalid_link": "Die trackinglink is geweigerd — mogelijk is hij onjuist, al gebruikt of verlopen. Open de oorspronkelijke e-mail en kopieer de link opnieuw.",
+      "cannot_connect": "Kon Ampère niet bereiken. Probeer het opnieuw.",
+      "already_tracked": "Dat pakket wordt al gevolgd, in deze of een andere hub."
+    }
+  },
+  "selector": {
+    "refresh_interval": {
+      "options": {
+        "15": "15 minuten",
+        "30": "30 minuten",
+        "60": "60 minuten",
+        "120": "120 minuten",
+        "240": "240 minuten"
+      }
+    },
+    "delivered_filter_type": {
+      "options": {
+        "days": "Dagen",
+        "parcels": "Aantal pakketten"
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "parcel_registered": "Een pakket is geregistreerd",
+      "parcel_status_changed": "De status van een pakket is gewijzigd",
+      "parcel_delivered": "Een pakket is bezorgd",
+      "parcel_delivery_time_changed": "De verwachte bezorgtijd van een pakket is gewijzigd"
+    }
+  },
+  "entity": {
+    "button": {
+      "refresh": {
+        "name": "Verversen"
+      }
+    },
+    "calendar": {
+      "deliveries": {
+        "name": "Bezorgingen"
+      }
+    },
+    "sensor": {
+      "incoming_parcels": {
+        "name": "Inkomende pakketten",
+        "unit_of_measurement": "pakketten"
+      },
+      "next_delivery": {
+        "name": "Volgende bezorging"
+      },
+      "delivered_parcels": {
+        "name": "Bezorgde pakketten",
+        "unit_of_measurement": "pakketten"
+      },
+      "last_update": {
+        "name": "Laatste succesvolle update"
+      },
+      "parcel": {
+        "name": "Pakket {barcode}"
+      }
+    }
+  }
+}

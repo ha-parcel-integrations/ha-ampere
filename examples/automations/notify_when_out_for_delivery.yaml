@@ -1,0 +1,24 @@
+# Notify when an Ampère parcel goes out for delivery.
+
+alias: "Ampère: out for delivery"
+description: Notify when a tracked Ampère parcel is loaded for delivery today.
+mode: queued
+max: 10
+
+triggers:
+  - trigger: event
+    event_type: ampere_parcel_status_changed
+
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.new_status == 'out_for_delivery' }}"
+
+actions:
+  - action: notify.mobile_app
+    data:
+      title: "Ampère: out for delivery"
+      message: >-
+        {{ trigger.event.data.sender or trigger.event.data.barcode }}
+        is being delivered today.
+      data:
+        clickAction: "{{ trigger.event.data.url }}"
