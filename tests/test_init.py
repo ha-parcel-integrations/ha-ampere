@@ -29,7 +29,11 @@ def _entry(parcel_tokens: list[str] | None = None) -> MockConfigEntry:
     )
 
 
-async def test_setup_and_unload(hass):
+async def test_setup_and_unload(hass, freezer):
+    # delivered_sample()'s history times are a real capture pinned to 12 aug;
+    # freeze "now" near it so the delivered sensor's default 7-day retention
+    # filter doesn't age the fixture out as real time marches on.
+    freezer.move_to("2026-08-13T12:00:00+00:00")
     entry = _entry()
     entry.add_to_hass(hass)
 
