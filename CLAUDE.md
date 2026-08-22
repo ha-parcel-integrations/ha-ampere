@@ -36,7 +36,7 @@ you act in one of these areas:
 ## Carrier-specific notes
 
 Ampère is bol.com's own last-mile delivery brand (NL only). Full wire
-mechanics live in the private `carrier-research/api/ampere/` — this section
+mechanics live in the private `carrier-research/ampere/api/` — this section
 is only the *integration*-side decisions that follow from them.
 
 **Auth model: a one-time link exchange, not a login.** Setup itself asks
@@ -164,7 +164,7 @@ and the shape-logging warnings (`_warn_unrecognised_page_shape`,
 `_warn_unrecognised_progress_shape`) exist precisely to catch that early
 via real user reports rather than a silent wrong parse.
 
-**API mechanics go in `carrier-research/api/ampere/`, NOT here and not in a
+**API mechanics go in `carrier-research/ampere/api/`, NOT here and not in a
 local `docs/api/`.** See CONVENTIONS.md.
 
 ## Options and reloads
@@ -213,5 +213,5 @@ python -m pytest tests/ --cov=custom_components.ampere
 
 Coverage must stay **above 95%** (silver `test-coverage` rule). Run before
 committing. A code change updates the README + this file + `docs/` in the same
-commit; the API reference lives in this carrier's directory under the private
-`carrier-research/api/`, never in this repo.
+commit; the API reference lives in the `api/` subfolder of this carrier's
+directory under the private `carrier-research/ampere/`, never in this repo.
