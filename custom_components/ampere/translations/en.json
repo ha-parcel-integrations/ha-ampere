@@ -29,9 +29,8 @@
       "init": {
         "title": "Ampère options",
         "menu_options": {
-          "settings": "Settings",
-          "add_parcel": "Track a parcel",
-          "remove_parcel": "Stop tracking a parcel"
+          "parcels": "Parcels",
+          "settings": "Settings"
         }
       },
       "add_parcel": {
@@ -79,19 +78,33 @@
               "refresh_interval": "How often the integration checks Ampère for parcel updates. A slower interval is gentler on Ampère's API; the default of 30 minutes is plenty for most parcels."
             }
           }
+        },
+        "data": {
+          "delivered_filter_type": "Delivered parcels: filter by",
+          "delivered_filter_amount": "Delivered parcels: amount",
+          "include_history": "Include status history",
+          "refresh_interval": "Refresh every"
         }
+      },
+      "parcels": {
+        "title": "Manage parcels",
+        "description": "Existing parcels appear by tracking code.",
+        "data": {"tracking_codes": "Tracking codes"},
+        "data_description": {"tracking_codes": "To add a parcel, paste its original tracking link from bol.com. Existing tracking codes can be removed from this list."}
       }
     },
     "abort": {
       "already_tracked": "That parcel is already being tracked, in this hub or another one.",
       "parcel_added": "Parcel added.",
       "parcel_removed": "Parcel removed.",
+      "parcels_updated": "Parcels updated.",
       "no_parcels": "This hub has no tracked parcels to remove."
     },
     "error": {
       "invalid_link": "That tracking link was rejected — it may be malformed, already used up or expired. Open the original e-mail and copy the link again.",
       "cannot_connect": "Could not reach Ampère. Please try again.",
-      "already_tracked": "That parcel is already being tracked, in this hub or another one."
+      "already_tracked": "That parcel is already being tracked, in this hub or another one.",
+      "tracking_link_required": "Enter the original tracking link from bol.com to add a new parcel."
     }
   },
   "selector": {

@@ -12,6 +12,7 @@ for more than one Ampère hub to exist: unlike GLS (scoped to one postcode) or
 an account-based carrier (scoped to one login), an Ampère parcel is already
 independently credentialed regardless of which hub it is filed under.
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,7 +28,6 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -120,6 +120,16 @@ def _label_for(parcel: dict[str, str], coordinator: Any | None) -> str:
     return f"parcel …{parcel_token[-6:]}"
 
 
+def _parcel_list_value(parcel: dict[str, str]) -> str:
+    """Return the editable list value for a stored parcel.
+
+    A carrier barcode is the user-facing identifier. Before the first poll has
+    learned it, retain the original tracking link so saving the form cannot
+    accidentally remove an otherwise valid parcel.
+    """
+    return parcel.get(CONF_BARCODE) or parcel[CONF_TRACKING_LINK]
+
+
 async def _exchange(hass: HomeAssistant, tracking_link: str) -> tuple[str, str]:
     """Follow a tracking link once and return (cookie, parcel_token).
 
@@ -145,7 +155,9 @@ def _interval_selector() -> selector.SelectSelector:
     )
 
 
-def _parcel_selector(parcels: list[dict], coordinator: Any | None) -> selector.SelectSelector:
+def _parcel_selector(
+    parcels: list[dict], coordinator: Any | None
+) -> selector.SelectSelector:
     """Return a single-select over ``parcels``, labelled via :func:`_label_for`."""
     return selector.SelectSelector(
         selector.SelectSelectorConfig(
@@ -245,9 +257,7 @@ class AmpReConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         entry = self._get_reauth_entry()
         parcels = _current_parcels(entry)
-        coordinator = getattr(
-            getattr(entry, "runtime_data", None), "coordinator", None
-        )
+        coordinator = getattr(getattr(entry, "runtime_data", None), "coordinator", None)
 
         target_token: str | None = None
         if len(parcels) == 1:
@@ -300,23 +310,85 @@ class AmpReConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class AmpReOptionsFlowHandler(OptionsFlow):
-    """Menu: adjust settings, track another parcel, or stop tracking one.
+    """Route parcel management and integration settings through two menus.
 
-    Unlike GLS's single sectioned form (where "add a parcel" is just a text
-    field validated synchronously), adding an Ampère parcel is a real async
-    step — its own tracking-link exchange, its own errors — so it gets its
-    own menu entry and form rather than living inside the settings form.
+    A list item can be a known carrier barcode or an original tracking link.
+    New parcels require a link so its cookie/token credential can be created.
     """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show the top-level menu — parcel actions first, settings last."""
-        menu_options = ["add_parcel"]
-        if _current_parcels(self.config_entry):
-            menu_options.append("remove_parcel")
-        menu_options.append("settings")
-        return self.async_show_menu(step_id="init", menu_options=menu_options)
+        """Show parcel management separately from integration settings."""
+        return self.async_show_menu(
+            step_id="init", menu_options=["parcels", "settings"]
+        )
+
+    async def async_step_parcels(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show and handle the complete code/link list."""
+        errors: dict[str, str] = {}
+        parcels = _current_parcels(self.config_entry)
+        if user_input is not None:
+            existing = {_parcel_list_value(parcel): parcel for parcel in parcels}
+            updated: list[dict[str, str]] = []
+            seen_tokens: set[str] = set()
+            for value in user_input.get("tracking_codes", []):
+                value = value.strip()
+                if not value:
+                    continue
+                if value in existing:
+                    parcel = existing[value]
+                elif value.startswith(("https://", "http://")):
+                    try:
+                        cookie, parcel_token = await _exchange(self.hass, value)
+                    except AmpReAuthError:
+                        errors["base"] = "invalid_link"
+                        break
+                    except (AmpReApiError, aiohttp.ClientError):
+                        errors["base"] = "cannot_connect"
+                        break
+                    if _find_entry_tracking_parcel(self.hass, parcel_token) is not None:
+                        errors["base"] = "already_tracked"
+                        break
+                    parcel = {
+                        CONF_COOKIE: cookie,
+                        CONF_PARCEL_TOKEN: parcel_token,
+                        CONF_TRACKING_LINK: value,
+                    }
+                else:
+                    errors["base"] = "tracking_link_required"
+                    break
+                if parcel[CONF_PARCEL_TOKEN] not in seen_tokens:
+                    updated.append(parcel)
+                    seen_tokens.add(parcel[CONF_PARCEL_TOKEN])
+
+            if not errors:
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    data={**self.config_entry.data, CONF_PARCELS: updated},
+                )
+                self.hass.config_entries.async_schedule_reload(
+                    self.config_entry.entry_id
+                )
+                return self.async_abort(reason="parcels_updated")
+
+        schema = vol.Schema(
+            {
+                vol.Optional("tracking_codes"): selector.TextSelector(
+                    selector.TextSelectorConfig(multiple=True)
+                )
+            }
+        )
+        return self.async_show_form(
+            step_id="parcels",
+            data_schema=self.add_suggested_values_to_schema(
+                schema,
+                {"tracking_codes": [_parcel_list_value(parcel) for parcel in parcels]},
+            ),
+            errors=errors,
+        )
 
     async def async_step_add_parcel(
         self, user_input: dict[str, Any] | None = None
@@ -333,10 +405,7 @@ class AmpReOptionsFlowHandler(OptionsFlow):
             except (AmpReApiError, aiohttp.ClientError):
                 errors["base"] = "cannot_connect"
             else:
-                if (
-                    _find_entry_tracking_parcel(self.hass, parcel_token)
-                    is not None
-                ):
+                if _find_entry_tracking_parcel(self.hass, parcel_token) is not None:
                     errors["base"] = "already_tracked"
                 else:
                     parcels = _current_parcels(self.config_entry)
@@ -370,124 +439,80 @@ class AmpReOptionsFlowHandler(OptionsFlow):
 
         if user_input is not None:
             remove_token = user_input[CONF_PARCEL_TOKEN]
-            remaining = [
-                p for p in parcels if p[CONF_PARCEL_TOKEN] != remove_token
-            ]
+            remaining = [p for p in parcels if p[CONF_PARCEL_TOKEN] != remove_token]
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
                 data={**self.config_entry.data, CONF_PARCELS: remaining},
             )
-            self.hass.config_entries.async_schedule_reload(
-                self.config_entry.entry_id
-            )
+            self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
             return self.async_abort(reason="parcel_removed")
 
         coordinator = getattr(
             getattr(self.config_entry, "runtime_data", None), "coordinator", None
         )
         schema = vol.Schema(
-            {
-                vol.Required(CONF_PARCEL_TOKEN): _parcel_selector(
-                    parcels, coordinator
-                )
-            }
+            {vol.Required(CONF_PARCEL_TOKEN): _parcel_selector(parcels, coordinator)}
         )
         return self.async_show_form(step_id="remove_parcel", data_schema=schema)
 
     async def async_step_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show and handle the delivered/history/polling sectioned form."""
+        """Show and handle non-parcel integration settings."""
         if user_input is not None:
-            delivered = user_input["delivered"]
-            history = user_input["history"]
-            polling = user_input["polling"]
-            # Reload so a changed interval takes effect immediately. No update
-            # listener is registered — combining the two is deprecated.
-            self.hass.config_entries.async_schedule_reload(
-                self.config_entry.entry_id
-            )
+            self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
             return self.async_create_entry(
                 title="",
                 data={
-                    CONF_DELIVERED_FILTER_TYPE: delivered[CONF_DELIVERED_FILTER_TYPE],
+                    CONF_DELIVERED_FILTER_TYPE: user_input[CONF_DELIVERED_FILTER_TYPE],
                     CONF_DELIVERED_FILTER_AMOUNT: int(
-                        delivered[CONF_DELIVERED_FILTER_AMOUNT]
+                        user_input[CONF_DELIVERED_FILTER_AMOUNT]
                     ),
-                    CONF_INCLUDE_HISTORY: bool(history[CONF_INCLUDE_HISTORY]),
-                    CONF_REFRESH_INTERVAL: int(polling[CONF_REFRESH_INTERVAL]),
+                    CONF_INCLUDE_HISTORY: bool(user_input[CONF_INCLUDE_HISTORY]),
+                    CONF_REFRESH_INTERVAL: int(user_input[CONF_REFRESH_INTERVAL]),
                 },
             )
 
         current = self.config_entry.options
-        schema = vol.Schema(
-            {
-                vol.Required("delivered"): section(
-                    vol.Schema(
-                        {
-                            vol.Required(
-                                CONF_DELIVERED_FILTER_TYPE,
-                                default=current.get(
-                                    CONF_DELIVERED_FILTER_TYPE,
-                                    DEFAULT_DELIVERED_FILTER_TYPE,
-                                ),
-                            ): selector.SelectSelector(
-                                selector.SelectSelectorConfig(
-                                    options=["days", "parcels"],
-                                    translation_key=CONF_DELIVERED_FILTER_TYPE,
-                                    mode=selector.SelectSelectorMode.LIST,
-                                )
-                            ),
-                            vol.Required(
-                                CONF_DELIVERED_FILTER_AMOUNT,
-                                default=current.get(
-                                    CONF_DELIVERED_FILTER_AMOUNT,
-                                    DEFAULT_DELIVERED_FILTER_AMOUNT,
-                                ),
-                            ): selector.NumberSelector(
-                                selector.NumberSelectorConfig(
-                                    min=1,
-                                    max=365,
-                                    step=1,
-                                    mode=selector.NumberSelectorMode.BOX,
-                                )
-                            ),
-                        }
+        return self.async_show_form(
+            step_id="settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_DELIVERED_FILTER_TYPE,
+                        default=current.get(
+                            CONF_DELIVERED_FILTER_TYPE, DEFAULT_DELIVERED_FILTER_TYPE
+                        ),
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=["days", "parcels"],
+                            translation_key=CONF_DELIVERED_FILTER_TYPE,
+                            mode=selector.SelectSelectorMode.LIST,
+                        )
                     ),
-                    {"collapsed": False},
-                ),
-                vol.Required("history"): section(
-                    vol.Schema(
-                        {
-                            vol.Required(
-                                CONF_INCLUDE_HISTORY,
-                                default=current.get(
-                                    CONF_INCLUDE_HISTORY, DEFAULT_INCLUDE_HISTORY
-                                ),
-                            ): selector.BooleanSelector(),
-                        }
+                    vol.Required(
+                        CONF_DELIVERED_FILTER_AMOUNT,
+                        default=current.get(
+                            CONF_DELIVERED_FILTER_AMOUNT,
+                            DEFAULT_DELIVERED_FILTER_AMOUNT,
+                        ),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1, max=365, step=1, mode=selector.NumberSelectorMode.BOX
+                        )
                     ),
-                    {"collapsed": True},
-                ),
-                vol.Required("polling"): section(
-                    vol.Schema(
-                        {
-                            vol.Required(
-                                CONF_REFRESH_INTERVAL,
-                                # str(): selector option values are strings, so
-                                # a stored int default trips "expected str".
-                                default=str(
-                                    current.get(
-                                        CONF_REFRESH_INTERVAL,
-                                        DEFAULT_REFRESH_INTERVAL,
-                                    )
-                                ),
-                            ): _interval_selector(),
-                        }
-                    ),
-                    {"collapsed": True},
-                ),
-            }
+                    vol.Required(
+                        CONF_INCLUDE_HISTORY,
+                        default=current.get(
+                            CONF_INCLUDE_HISTORY, DEFAULT_INCLUDE_HISTORY
+                        ),
+                    ): selector.BooleanSelector(),
+                    vol.Required(
+                        CONF_REFRESH_INTERVAL,
+                        default=str(
+                            current.get(CONF_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL)
+                        ),
+                    ): _interval_selector(),
+                }
+            ),
         )
-
-        return self.async_show_form(step_id="settings", data_schema=schema)

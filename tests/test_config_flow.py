@@ -1,15 +1,15 @@
 """Tests for the Ampère config and options flow."""
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-import aiohttp
-import pytest
 from homeassistant.config_entries import SOURCE_USER
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ampere.api import AmpReApiError, AmpReAuthError
-from custom_components.ampere.config_flow import CONF_TRACKING_LINK
+from custom_components.ampere.config_flow import CONF_TRACKING_LINK, _parcel_list_value
 from custom_components.ampere.const import (
+    CONF_BARCODE,
     CONF_COOKIE,
     CONF_DELIVERED_FILTER_AMOUNT,
     CONF_DELIVERED_FILTER_TYPE,
@@ -105,9 +105,7 @@ async def test_reauth_updates_the_cookie_and_token(hass):
     with patch(
         EXCHANGE, new=AsyncMock(return_value=("new-cookie", new_token))
     ) as exchange:
-        result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {}
-        )
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
         await hass.async_block_till_done()
 
     assert exchange.await_args.args[1] == TRACKING_LINK
@@ -128,9 +126,7 @@ async def test_reauth_surfaces_invalid_link(hass):
 
     result = await entry.start_reauth_flow(hass)
     with patch(EXCHANGE, new=AsyncMock(side_effect=AmpReAuthError("HTTP 404"))):
-        result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {}
-        )
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
 
     assert result["type"] == "form"
     assert result["errors"] == {"base": "invalid_link"}
@@ -142,9 +138,7 @@ async def test_reauth_surfaces_connection_errors(hass):
 
     result = await entry.start_reauth_flow(hass)
     with patch(EXCHANGE, new=AsyncMock(side_effect=AmpReApiError("HTTP 500"))):
-        result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {}
-        )
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
 
     assert result["errors"] == {"base": "cannot_connect"}
 
@@ -157,7 +151,9 @@ async def test_reauth_multi_parcel_targets_the_failed_one(hass):
         title="Ampère",
         data={
             CONF_PARCELS: [
-                parcel_credential(parcel_token=PARCEL_TOKEN, tracking_link=TRACKING_LINK),
+                parcel_credential(
+                    parcel_token=PARCEL_TOKEN, tracking_link=TRACKING_LINK
+                ),
                 parcel_credential(parcel_token=SECOND_TOKEN, tracking_link=SECOND_LINK),
             ]
         },
@@ -171,9 +167,7 @@ async def test_reauth_multi_parcel_targets_the_failed_one(hass):
     with patch(
         EXCHANGE, new=AsyncMock(return_value=("new-cookie", SECOND_TOKEN))
     ) as exchange:
-        result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {}
-        )
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
         await hass.async_block_till_done()
 
     assert exchange.await_args.args[1] == SECOND_LINK
@@ -206,7 +200,9 @@ async def test_reauth_multi_parcel_ambiguous_asks_user_to_pick(hass):
         title="Ampère",
         data={
             CONF_PARCELS: [
-                parcel_credential(parcel_token=PARCEL_TOKEN, tracking_link=TRACKING_LINK),
+                parcel_credential(
+                    parcel_token=PARCEL_TOKEN, tracking_link=TRACKING_LINK
+                ),
                 parcel_credential(parcel_token=SECOND_TOKEN, tracking_link=SECOND_LINK),
             ]
         },
@@ -239,177 +235,80 @@ async def test_reauth_multi_parcel_ambiguous_asks_user_to_pick(hass):
 # ---------------------------------------------------------------------------
 
 
-async def test_options_menu_order_is_parcel_actions_then_settings(hass):
-    entry = _entry([PARCEL_TOKEN, SECOND_TOKEN])
-    entry.add_to_hass(hass)
-
+async def _open_options_step(hass, entry, step_id: str):
+    """Start the options flow and select one of its two top-level routes."""
     result = await hass.config_entries.options.async_init(entry.entry_id)
-
     assert result["type"] == "menu"
-    assert result["menu_options"] == ["add_parcel", "remove_parcel", "settings"]
-
-
-async def test_options_menu_omits_remove_with_no_parcels(hass):
-    entry = _entry([])
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-
-    assert result["menu_options"] == ["add_parcel", "settings"]
-
-
-# ---------------------------------------------------------------------------
-# options — settings
-# ---------------------------------------------------------------------------
-
-
-async def test_options_flow_saves_and_reloads(hass):
-    entry = _entry()
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "settings"}
+    assert result["menu_options"] == ["parcels", "settings"]
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": step_id}
     )
-    assert result["step_id"] == "settings"
-
-    with patch.object(
-        hass.config_entries, "async_schedule_reload"
-    ) as schedule_reload:
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"],
-            {
-                "delivered": {
-                    CONF_DELIVERED_FILTER_TYPE: "parcels",
-                    CONF_DELIVERED_FILTER_AMOUNT: 5,
-                },
-                "history": {CONF_INCLUDE_HISTORY: True},
-                "polling": {CONF_REFRESH_INTERVAL: "60"},
-            },
-        )
-
-    assert result["type"] == "create_entry"
-    assert result["data"] == {
-        CONF_DELIVERED_FILTER_TYPE: "parcels",
-        CONF_DELIVERED_FILTER_AMOUNT: 5,
-        CONF_INCLUDE_HISTORY: True,
-        CONF_REFRESH_INTERVAL: 60,
-    }
-    # A changed interval only takes effect on reload, so the flow schedules one
-    # itself rather than registering an update listener (which is deprecated in
-    # combination with reloading).
-    schedule_reload.assert_called_once_with(entry.entry_id)
 
 
-# ---------------------------------------------------------------------------
-# options — add parcel
-# ---------------------------------------------------------------------------
-
-
-async def test_options_add_parcel_success(hass):
-    entry = _entry()
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "add_parcel"}
+async def test_options_parcel_list_accepts_a_tracking_link(hass):
+    """A new list item is exchanged into Ampère's stored credential."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_PARCELS: []},
     )
-    assert result["step_id"] == "add_parcel"
-
-    with patch(EXCHANGE, new=AsyncMock(return_value=(COOKIE, SECOND_TOKEN))):
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"], LINK_INPUT
-        )
-
-    assert result["type"] == "abort"
-    assert result["reason"] == "parcel_added"
-    tokens = {p[CONF_PARCEL_TOKEN] for p in entry.data[CONF_PARCELS]}
-    assert tokens == {PARCEL_TOKEN, SECOND_TOKEN}
-
-
-async def test_options_add_parcel_rejects_one_already_tracked(hass):
-    """A link that resolves to a parcel this hub already tracks is rejected."""
-    entry = _entry([PARCEL_TOKEN])
     entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "add_parcel"}
-    )
+    result = await _open_options_step(hass, entry, "parcels")
     with patch(EXCHANGE, new=AsyncMock(return_value=(COOKIE, PARCEL_TOKEN))):
         result = await hass.config_entries.options.async_configure(
-            result["flow_id"], LINK_INPUT
+            result["flow_id"], {"tracking_codes": [TRACKING_LINK]}
         )
-
-    assert result["type"] == "form"
-    assert result["errors"] == {"base": "already_tracked"}
-    assert len(entry.data[CONF_PARCELS]) == 1
-
-
-async def test_options_add_parcel_strips_whitespace_from_the_link(hass):
-    """Pasting from an e-mail client often carries leading/trailing whitespace."""
-    entry = _entry([])
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "add_parcel"}
-    )
-    exchange = AsyncMock(return_value=(COOKIE, PARCEL_TOKEN))
-    with patch(EXCHANGE, new=exchange):
-        await hass.config_entries.options.async_configure(
-            result["flow_id"], {CONF_TRACKING_LINK: f"  {TRACKING_LINK}  "}
-        )
-
-    assert exchange.call_args[0][1] == TRACKING_LINK
-    assert len(entry.data[CONF_PARCELS]) == 1
-
-
-@pytest.mark.parametrize(
-    "error,expected",
-    [
-        (AmpReAuthError("HTTP 404"), "invalid_link"),
-        (AmpReApiError("HTTP 500"), "cannot_connect"),
-        (aiohttp.ClientError("boom"), "cannot_connect"),
-    ],
-)
-async def test_options_add_parcel_surfaces_errors(hass, error, expected):
-    entry = _entry()
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "add_parcel"}
-    )
-    with patch(EXCHANGE, new=AsyncMock(side_effect=error)):
-        result = await hass.config_entries.options.async_configure(
-            result["flow_id"], LINK_INPUT
-        )
-
-    assert result["type"] == "form"
-    assert result["errors"] == {"base": expected}
-
-
-# ---------------------------------------------------------------------------
-# options — remove parcel
-# ---------------------------------------------------------------------------
-
-
-async def test_options_remove_parcel(hass):
-    entry = _entry([PARCEL_TOKEN, SECOND_TOKEN])
-    entry.add_to_hass(hass)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "remove_parcel"}
-    )
-    assert result["step_id"] == "remove_parcel"
-
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {CONF_PARCEL_TOKEN: SECOND_TOKEN}
-    )
 
     assert result["type"] == "abort"
-    assert result["reason"] == "parcel_removed"
-    tokens = {p[CONF_PARCEL_TOKEN] for p in entry.data[CONF_PARCELS]}
-    assert tokens == {PARCEL_TOKEN}
+    assert result["reason"] == "parcels_updated"
+    assert entry.data[CONF_PARCELS] == [parcel_credential()]
+
+
+async def test_options_parcel_list_uses_cached_tracking_codes(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_PARCELS: [{**parcel_credential(), CONF_BARCODE: "AMP123"}]},
+    )
+    entry.add_to_hass(hass)
+    await _open_options_step(hass, entry, "parcels")
+    assert _parcel_list_value(entry.data[CONF_PARCELS][0]) == "AMP123"
+
+
+async def test_options_parcel_list_can_be_cleared(hass):
+    entry = _entry()
+    entry.add_to_hass(hass)
+    result = await _open_options_step(hass, entry, "parcels")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"tracking_codes": []}
+    )
+
+    assert result["reason"] == "parcels_updated"
+    assert entry.data[CONF_PARCELS] == []
+
+
+async def test_options_rejects_a_new_code_without_its_tracking_link(hass):
+    entry = _entry([])
+    entry.add_to_hass(hass)
+    result = await _open_options_step(hass, entry, "parcels")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"tracking_codes": ["AMP123"]}
+    )
+
+    assert result["errors"] == {"base": "tracking_link_required"}
+
+
+async def test_options_settings_preserve_parcel_list(hass):
+    """Saving settings must never replace the manually tracked parcel list."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_PARCELS: [parcel_credential()]})
+    entry.add_to_hass(hass)
+    result = await _open_options_step(hass, entry, "settings")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_DELIVERED_FILTER_TYPE: "days",
+            CONF_DELIVERED_FILTER_AMOUNT: 7,
+            CONF_INCLUDE_HISTORY: False,
+            CONF_REFRESH_INTERVAL: "30",
+        },
+    )
+    assert result["type"] == "create_entry"
+    assert result["data"][CONF_REFRESH_INTERVAL] == 30
