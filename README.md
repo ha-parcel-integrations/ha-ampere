@@ -43,7 +43,7 @@ Track more than one bol.com order from the same hub: use **Track a parcel** in t
 
 ## Requirements
 
-- Home Assistant 2024.7 or newer
+- Home Assistant 2024.12 or newer
 - The tracking link from a bol.com shipping-confirmation e-mail for a parcel delivered by Ampère (starts with `link.bol.com/t/...`) — no Ampère account, username or password involved
 
 ## Installation
@@ -96,6 +96,12 @@ Standard HA removal applies: **Settings → Devices & Services → Ampère → �
 | `sensor.<device>_last_successful_update` | Diagnostic: when Ampère was last polled successfully |
 
 `<device>` is the single Ampère hub device — every tracked parcel's sensors live on it, not one device per parcel. The parcel moves from its per-parcel sensor to the delivered sensor automatically once delivered.
+
+A **`calendar.<device>_deliveries`** entity shows expected delivery dates for
+active parcels — read-only, no extra API calls.
+
+A **`button.<device>_refresh`** entity forces an immediate poll, without waiting
+for the next scheduled interval.
 
 ## Parcel status reference
 
