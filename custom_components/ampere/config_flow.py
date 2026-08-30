@@ -4,13 +4,11 @@ Single hub, several parcels (const.CONF_PARCELS): ``async_step_user`` takes
 no input and creates the hub immediately with an empty parcel list
 (``single_config_entry`` in the manifest enforces there is only ever one),
 and every parcel — including the first — is added afterwards through the
-options flow's ``add_parcel`` step. Adding an Ampère parcel is a real async
-step (its own form, its own errors: a one-time link exchange, not a
-synchronous code check), so it lives on its own menu entry rather than a
-plain text field alongside the settings the way GLS's is. There is no reason
-for more than one Ampère hub to exist: unlike GLS (scoped to one postcode) or
-an account-based carrier (scoped to one login), an Ampère parcel is already
-independently credentialed regardless of which hub it is filed under.
+options flow's ``parcels`` step, which exchanges any new tracking link it
+finds in the submitted list. There is no reason for more than one Ampère hub
+to exist: unlike GLS (scoped to one postcode) or an account-based carrier
+(scoped to one login), an Ampère parcel is already independently credentialed
+regardless of which hub it is filed under.
 """
 
 from __future__ import annotations
@@ -44,27 +42,14 @@ from .const import (
     CONF_INCLUDE_HISTORY,
     CONF_PARCEL_TOKEN,
     CONF_PARCELS,
-    CONF_REFRESH_INTERVAL,
     CONF_TRACKING_LINK,
     DEFAULT_DELIVERED_FILTER_AMOUNT,
     DEFAULT_DELIVERED_FILTER_TYPE,
     DEFAULT_INCLUDE_HISTORY,
-    DEFAULT_NEW_REFRESH_INTERVAL,
-    DEFAULT_REFRESH_INTERVAL,
     DOMAIN,
-    REFRESH_INTERVAL_AUTO,
-    REFRESH_INTERVAL_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-# Setup, and adding a parcel later, both ask for the *full* tracking link
-# from bol.com's shipping e-mail
-# (``https://link.bol.com/t/<mail-token>?notificationId=...``), not a short
-# code — see carrier-research/api/ampere/tracking.md's "Consuming this for a
-# build" section. The real validation is the live redirect chain the link is
-# put through, so the schema only checks it looks like a string at all.
-_LINK_SCHEMA = vol.Schema({vol.Required(CONF_TRACKING_LINK): str})
 
 
 def _current_parcels(entry: ConfigEntry) -> list[dict[str, str]]:
@@ -146,18 +131,6 @@ async def _exchange(hass: HomeAssistant, tracking_link: str) -> tuple[str, str]:
     )
 
 
-def _interval_selector() -> selector.SelectSelector:
-    """Return the refresh-interval dropdown selector (options translated via strings)."""
-    return selector.SelectSelector(
-        selector.SelectSelectorConfig(
-            options=[REFRESH_INTERVAL_AUTO]
-            + [str(minutes) for minutes in REFRESH_INTERVAL_OPTIONS],
-            translation_key=CONF_REFRESH_INTERVAL,
-            mode=selector.SelectSelectorMode.DROPDOWN,
-        )
-    )
-
-
 def _parcel_selector(
     parcels: list[dict], coordinator: Any | None
 ) -> selector.SelectSelector:
@@ -198,7 +171,7 @@ class AmpReConfigFlow(ConfigFlow, domain=DOMAIN):
         no per-parcel credential is needed just to create the hub itself. The
         entry is created immediately with an empty :data:`CONF_PARCELS`;
         every parcel — including the first — is added afterwards through the
-        options flow's ``add_parcel`` step (see
+        options flow's ``parcels`` step (see
         :class:`AmpReOptionsFlowHandler`). ``single_config_entry`` in the
         manifest enforces one hub; ``unique_id = DOMAIN`` is belt-and-braces.
         """
@@ -210,7 +183,6 @@ class AmpReConfigFlow(ConfigFlow, domain=DOMAIN):
             options={
                 CONF_DELIVERED_FILTER_TYPE: DEFAULT_DELIVERED_FILTER_TYPE,
                 CONF_DELIVERED_FILTER_AMOUNT: DEFAULT_DELIVERED_FILTER_AMOUNT,
-                CONF_REFRESH_INTERVAL: DEFAULT_NEW_REFRESH_INTERVAL,
                 CONF_INCLUDE_HISTORY: DEFAULT_INCLUDE_HISTORY,
             },
         )
@@ -393,71 +365,6 @@ class AmpReOptionsFlowHandler(OptionsFlow):
             errors=errors,
         )
 
-    async def async_step_add_parcel(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Exchange a tracking link and append it to this hub's parcels."""
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            link = user_input[CONF_TRACKING_LINK].strip()
-            try:
-                cookie, parcel_token = await _exchange(self.hass, link)
-            except AmpReAuthError:
-                errors["base"] = "invalid_link"
-            except (AmpReApiError, aiohttp.ClientError):
-                errors["base"] = "cannot_connect"
-            else:
-                if _find_entry_tracking_parcel(self.hass, parcel_token) is not None:
-                    errors["base"] = "already_tracked"
-                else:
-                    parcels = _current_parcels(self.config_entry)
-                    parcels.append(
-                        {
-                            CONF_COOKIE: cookie,
-                            CONF_PARCEL_TOKEN: parcel_token,
-                            CONF_TRACKING_LINK: link,
-                        }
-                    )
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry,
-                        data={**self.config_entry.data, CONF_PARCELS: parcels},
-                    )
-                    self.hass.config_entries.async_schedule_reload(
-                        self.config_entry.entry_id
-                    )
-                    return self.async_abort(reason="parcel_added")
-
-        return self.async_show_form(
-            step_id="add_parcel", data_schema=_LINK_SCHEMA, errors=errors
-        )
-
-    async def async_step_remove_parcel(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Stop tracking one of this hub's parcels."""
-        parcels = _current_parcels(self.config_entry)
-        if not parcels:
-            return self.async_abort(reason="no_parcels")
-
-        if user_input is not None:
-            remove_token = user_input[CONF_PARCEL_TOKEN]
-            remaining = [p for p in parcels if p[CONF_PARCEL_TOKEN] != remove_token]
-            self.hass.config_entries.async_update_entry(
-                self.config_entry,
-                data={**self.config_entry.data, CONF_PARCELS: remaining},
-            )
-            self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
-            return self.async_abort(reason="parcel_removed")
-
-        coordinator = getattr(
-            getattr(self.config_entry, "runtime_data", None), "coordinator", None
-        )
-        schema = vol.Schema(
-            {vol.Required(CONF_PARCEL_TOKEN): _parcel_selector(parcels, coordinator)}
-        )
-        return self.async_show_form(step_id="remove_parcel", data_schema=schema)
-
     async def async_step_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -472,11 +379,6 @@ class AmpReOptionsFlowHandler(OptionsFlow):
                         user_input[CONF_DELIVERED_FILTER_AMOUNT]
                     ),
                     CONF_INCLUDE_HISTORY: bool(user_input[CONF_INCLUDE_HISTORY]),
-                    CONF_REFRESH_INTERVAL: (
-                        REFRESH_INTERVAL_AUTO
-                        if user_input[CONF_REFRESH_INTERVAL] == REFRESH_INTERVAL_AUTO
-                        else int(user_input[CONF_REFRESH_INTERVAL])
-                    ),
                 },
             )
 
@@ -514,12 +416,6 @@ class AmpReOptionsFlowHandler(OptionsFlow):
                             CONF_INCLUDE_HISTORY, DEFAULT_INCLUDE_HISTORY
                         ),
                     ): selector.BooleanSelector(),
-                    vol.Required(
-                        CONF_REFRESH_INTERVAL,
-                        default=str(
-                            current.get(CONF_REFRESH_INTERVAL, DEFAULT_REFRESH_INTERVAL)
-                        ),
-                    ): _interval_selector(),
                 }
             ),
         )

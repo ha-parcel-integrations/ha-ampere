@@ -80,14 +80,11 @@ Open **Configure** on the integration entry:
 |---|---|---|---|
 | Delivered parcels | Filter by / amount | last 7 days | How long a delivered parcel stays visible on the delivered sensor. |
 | Parcel history | Include status history | off | Adds a `history` attribute per parcel with every status change and when it happened. Off by default, same as every carrier in this family — it's a large attribute. |
-| Polling | Refresh every | Automatic | How often Ampère is checked. **Automatic** (the default for new installs, see [Dynamic polling](#dynamic-polling) below) speeds up around expected deliveries and slows down overnight; a fixed interval polls at that constant rate around the clock instead. |
 
 ## Dynamic polling
 
-You can set **Refresh every** to **Automatic** instead of a fixed number of
-minutes. Instead of polling Ampère at the same rate around the clock, the
-integration adjusts its own cadence to what your tracked parcels are
-actually doing:
+Polling isn't a setting here — the integration adjusts its own cadence to
+what your tracked parcels are actually doing:
 
 - **Quiet hours** — no polling between 00:00–06:00 local time, aside from one
   catch-up check at each end of that window (around midnight and around 6
@@ -101,12 +98,6 @@ actually doing:
   always triggers an immediate check, regardless of the pause).
 - A small, fixed per-hub offset is added on top, so not every Ampère hub out
   there polls at exactly the same second.
-
-Automatic is the default for newly added hubs; an existing hub keeps
-whatever fixed interval it already had until you switch it yourself. If you
-try Automatic, we'd genuinely like to hear how it goes: share your
-experience in [this
-discussion](https://github.com/orgs/ha-parcel-integrations/discussions/12).
 
 ## Removal
 

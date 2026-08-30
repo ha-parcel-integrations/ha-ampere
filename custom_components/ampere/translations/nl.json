@@ -33,19 +33,6 @@
           "settings": "Instellingen"
         }
       },
-      "add_parcel": {
-        "title": "Een pakket volgen",
-        "description": "Plak de trackinglink uit de verzendbevestiging van dát pakket van bol.com.",
-        "data": {
-          "tracking_link": "Trackinglink"
-        }
-      },
-      "remove_parcel": {
-        "title": "Stoppen met een pakket volgen",
-        "data": {
-          "parcel_token": "Pakket"
-        }
-      },
       "settings": {
         "title": "Ampère-opties",
         "sections": {
@@ -68,22 +55,12 @@
             "data_description": {
               "include_history": "Voegt per pakket een history-attribuut toe met elke statusupdate (tijdstip, status, originele tekst). Standaard uit."
             }
-          },
-          "polling": {
-            "name": "Verversen",
-            "data": {
-              "refresh_interval": "Ververs elke"
-            },
-            "data_description": {
-              "refresh_interval": "Hoe vaak de integratie Ampère controleert op pakketupdates. \"Automatisch\" (de standaard voor nieuwe installaties) versnelt rond verwachte bezorgingen en vertraagt 's nachts; een vast interval ververst dag en nacht met dezelfde vaste snelheid."
-            }
           }
         },
         "data": {
           "delivered_filter_type": "Bezorgde pakketten: filteren op",
           "delivered_filter_amount": "Bezorgde pakketten: aantal",
-          "include_history": "Statusgeschiedenis opnemen",
-          "refresh_interval": "Vernieuwen elke"
+          "include_history": "Statusgeschiedenis opnemen"
         }
       },
       "parcels": {
@@ -95,10 +72,7 @@
     },
     "abort": {
       "already_tracked": "Dat pakket wordt al gevolgd, in deze of een andere hub.",
-      "parcel_added": "Pakket toegevoegd.",
-      "parcel_removed": "Pakket verwijderd.",
-      "parcels_updated": "Pakketten bijgewerkt.",
-      "no_parcels": "Deze hub heeft geen gevolgde pakketten om te verwijderen."
+      "parcels_updated": "Pakketten bijgewerkt."
     },
     "error": {
       "invalid_link": "Die trackinglink is geweigerd — mogelijk is hij onjuist, al gebruikt of verlopen. Open de oorspronkelijke e-mail en kopieer de link opnieuw.",
@@ -108,16 +82,6 @@
     }
   },
   "selector": {
-    "refresh_interval": {
-      "options": {
-        "auto": "Automatisch (aanbevolen)",
-        "15": "15 minuten",
-        "30": "30 minuten",
-        "60": "60 minuten",
-        "120": "120 minuten",
-        "240": "240 minuten"
-      }
-    },
     "delivered_filter_type": {
       "options": {
         "days": "Dagen",

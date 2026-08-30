@@ -178,9 +178,23 @@ without a restart. Two models, **do not mix them**:
   **no** update listener. Combining a listener with a reload-on-update flow is
   deprecated, an error in HA 2026.12+.
 
-The user-tunable poll interval is a deliberate HACS divergence (see
-CONVENTIONS.md); a carrier that throttles is generated with a fixed cadence and no
-polling option at all.
+## Dynamic polling
+
+There is no user-facing polling interval — this is a deliberate suite-wide
+choice, not a gap. `coordinator.py` recomputes `update_interval` at the end of
+every refresh:
+
+- **Quiet window:** no polling 00:00–06:00 local time, except two daily
+  anchors (~00:00 and ~06:00) for overnight / end-of-day catch-up.
+- **Tiers while polling:** *hot* (15 min) when a tracked, not-yet-delivered
+  parcel is `out_for_delivery` within an hour of its `planned_from` (or has no
+  `planned_from` at all); *mid* (45 min) for anything else still in flight.
+- **Full stop:** `update_interval = None` when nothing is tracked or every
+  tracked parcel is delivered. Resumes the moment a parcel is added back, via
+  the options-flow update listener above.
+- **Stagger:** a small, stable per-install offset (hash of the config entry
+  id) is added to every computed interval so installs don't all hit an anchor
+  or tier boundary at the same second.
 
 ## Module layout
 

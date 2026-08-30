@@ -7,11 +7,7 @@ from homeassistant.config_entries import SOURCE_USER
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ampere.api import AmpReApiError, AmpReAuthError
-from custom_components.ampere.config_flow import (
-    CONF_TRACKING_LINK,
-    AmpReOptionsFlowHandler,
-    _parcel_list_value,
-)
+from custom_components.ampere.config_flow import CONF_TRACKING_LINK, _parcel_list_value
 from custom_components.ampere.const import (
     CONF_BARCODE,
     CONF_COOKIE,
@@ -20,10 +16,7 @@ from custom_components.ampere.const import (
     CONF_INCLUDE_HISTORY,
     CONF_PARCEL_TOKEN,
     CONF_PARCELS,
-    CONF_REFRESH_INTERVAL,
-    DEFAULT_NEW_REFRESH_INTERVAL,
     DOMAIN,
-    REFRESH_INTERVAL_AUTO,
 )
 
 from .payloads import COOKIE, PARCEL_TOKEN, TRACKING_LINK, parcel_credential
@@ -45,7 +38,6 @@ def _entry(parcel_tokens: list[str] | None = None) -> MockConfigEntry:
             CONF_DELIVERED_FILTER_TYPE: "days",
             CONF_DELIVERED_FILTER_AMOUNT: 7,
             CONF_INCLUDE_HISTORY: False,
-            CONF_REFRESH_INTERVAL: 30,
         },
     )
 
@@ -73,9 +65,6 @@ async def test_user_flow_creates_empty_hub_with_no_input(hass):
     assert result["type"] == "create_entry"
     assert result["title"] == "Ampère"
     assert result["data"] == {CONF_PARCELS: []}
-    # New hubs default to dynamic polling (dynamic-polling.md Section 5.2).
-    assert result["options"][CONF_REFRESH_INTERVAL] == DEFAULT_NEW_REFRESH_INTERVAL
-    assert DEFAULT_NEW_REFRESH_INTERVAL == REFRESH_INTERVAL_AUTO
 
 
 async def test_user_flow_is_single_instance(hass):
@@ -187,8 +176,8 @@ async def test_reauth_multi_parcel_targets_the_failed_one(hass):
 
 
 async def test_reauth_confirm_with_no_parcels_left_aborts(hass):
-    """The failing parcel could have been removed via remove_parcel while a
-    reauth flow was still pending on it — confirming then must not crash."""
+    """The failing parcel could have been removed via the parcels list while
+    a reauth flow was still pending on it — confirming then must not crash."""
     entry = _entry()
     entry.add_to_hass(hass)
     result = await entry.start_reauth_flow(hass)
@@ -321,141 +310,7 @@ async def test_options_settings_preserve_parcel_list(hass):
             CONF_DELIVERED_FILTER_TYPE: "days",
             CONF_DELIVERED_FILTER_AMOUNT: 7,
             CONF_INCLUDE_HISTORY: False,
-            CONF_REFRESH_INTERVAL: "30",
         },
     )
     assert result["type"] == "create_entry"
-    assert result["data"][CONF_REFRESH_INTERVAL] == 30
-
-
-async def test_options_settings_can_switch_to_auto(hass):
-    """An existing fixed-interval hub can opt into dynamic polling."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={CONF_PARCELS: [parcel_credential()]},
-        options={CONF_REFRESH_INTERVAL: 30},
-    )
-    entry.add_to_hass(hass)
-    result = await _open_options_step(hass, entry, "settings")
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"],
-        {
-            CONF_DELIVERED_FILTER_TYPE: "days",
-            CONF_DELIVERED_FILTER_AMOUNT: 7,
-            CONF_INCLUDE_HISTORY: False,
-            CONF_REFRESH_INTERVAL: REFRESH_INTERVAL_AUTO,
-        },
-    )
-    assert result["type"] == "create_entry"
-    assert result["data"][CONF_REFRESH_INTERVAL] == REFRESH_INTERVAL_AUTO
-
-
-# ---------------------------------------------------------------------------
-# add_parcel / remove_parcel step handlers
-#
-# Not reachable from the options-flow menu today (async_step_init only
-# offers "parcels"/"settings", which manage the whole tracking-code list as
-# one multi-value field) — pre-existing, unrelated to dynamic polling.
-# Exercised directly against the handler so this repo's coverage gate isn't
-# carrying dead weight from before this change.
-# ---------------------------------------------------------------------------
-
-
-def _handler(hass, entry: MockConfigEntry) -> AmpReOptionsFlowHandler:
-    """Build the options flow handler directly, bypassing the flow manager.
-
-    ``config_entry`` is a read-only property resolved from ``handler`` (the
-    entry id) + ``hass`` — entry must already be added via ``add_to_hass``.
-    """
-    handler = AmpReOptionsFlowHandler()
-    handler.hass = hass
-    handler.handler = entry.entry_id
-    return handler
-
-
-# These steps schedule a reload on success — same as the "parcels"/"settings"
-# steps exercised elsewhere in this file through the real flow manager. Since
-# the entry here was never actually set up, patch the reload away so it
-# can't fire a real (network-touching) setup as a background task the test
-# never awaits.
-
-
-async def test_add_parcel_step_exchanges_and_appends(hass):
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_PARCELS: []})
-    entry.add_to_hass(hass)
-    handler = _handler(hass, entry)
-
-    with (
-        patch(EXCHANGE, new=AsyncMock(return_value=(COOKIE, PARCEL_TOKEN))),
-        patch.object(hass.config_entries, "async_schedule_reload"),
-    ):
-        result = await handler.async_step_add_parcel(
-            {CONF_TRACKING_LINK: TRACKING_LINK}
-        )
-
-    assert result["type"] == "abort"
-    assert result["reason"] == "parcel_added"
     assert entry.data[CONF_PARCELS] == [parcel_credential()]
-
-
-async def test_add_parcel_step_rejects_an_already_tracked_parcel(hass):
-    entry = MockConfigEntry(
-        domain=DOMAIN, data={CONF_PARCELS: [parcel_credential()]}
-    )
-    entry.add_to_hass(hass)
-    handler = _handler(hass, entry)
-
-    with patch(EXCHANGE, new=AsyncMock(return_value=(COOKIE, PARCEL_TOKEN))):
-        result = await handler.async_step_add_parcel(
-            {CONF_TRACKING_LINK: TRACKING_LINK}
-        )
-
-    assert result["errors"] == {"base": "already_tracked"}
-
-
-async def test_add_parcel_step_shows_form_with_no_input(hass):
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_PARCELS: []})
-    entry.add_to_hass(hass)
-    handler = _handler(hass, entry)
-
-    result = await handler.async_step_add_parcel()
-
-    assert result["type"] == "form"
-    assert result["step_id"] == "add_parcel"
-
-
-async def test_remove_parcel_step_aborts_with_no_parcels(hass):
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_PARCELS: []})
-    entry.add_to_hass(hass)
-    handler = _handler(hass, entry)
-
-    result = await handler.async_step_remove_parcel()
-
-    assert result["type"] == "abort"
-    assert result["reason"] == "no_parcels"
-
-
-async def test_remove_parcel_step_shows_a_picker(hass):
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_PARCELS: [parcel_credential()]})
-    entry.add_to_hass(hass)
-    handler = _handler(hass, entry)
-
-    result = await handler.async_step_remove_parcel()
-
-    assert result["type"] == "form"
-    assert result["step_id"] == "remove_parcel"
-
-
-async def test_remove_parcel_step_removes_the_chosen_parcel(hass):
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_PARCELS: [parcel_credential()]})
-    entry.add_to_hass(hass)
-    handler = _handler(hass, entry)
-
-    with patch.object(hass.config_entries, "async_schedule_reload"):
-        result = await handler.async_step_remove_parcel(
-            {CONF_PARCEL_TOKEN: PARCEL_TOKEN}
-        )
-
-    assert result["type"] == "abort"
-    assert result["reason"] == "parcel_removed"
-    assert entry.data[CONF_PARCELS] == []
