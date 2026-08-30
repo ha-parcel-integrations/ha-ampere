@@ -1,4 +1,5 @@
 """Tests for Ampère diagnostics."""
+from datetime import timedelta
 from unittest.mock import MagicMock
 
 from custom_components.ampere.diagnostics import (
@@ -25,9 +26,15 @@ async def test_diagnostics_redacts_and_counts(hass):
         }
     ]
     entry.runtime_data.coordinator.delivered = []
+    entry.runtime_data.coordinator.current_tier_minutes = 15
+    entry.runtime_data.coordinator.update_interval = timedelta(minutes=15)
 
     result = await async_get_config_entry_diagnostics(hass, entry)
 
+    assert result["polling"] == {
+        "current_tier_minutes": 15,
+        "update_interval_seconds": 900.0,
+    }
     assert result["counts"] == {"incoming_active": 1, "delivered": 0}
     # barcode, address and the internal parcel-token are redacted, at every
     # nesting level — including inside the raw payload.
