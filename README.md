@@ -44,7 +44,6 @@ Track more than one bol.com order from the same hub: use **Track a parcel** in t
 
 ## Requirements
 
-- Home Assistant 2024.12 or newer
 - The tracking link from a bol.com shipping-confirmation e-mail for a parcel delivered by Ampère (starts with `link.bol.com/t/...`) — no Ampère account, username or password involved
 
 ## Installation
