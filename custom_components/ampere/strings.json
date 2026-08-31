@@ -27,14 +27,14 @@
   "options": {
     "step": {
       "init": {
-        "title": "Ampère options",
+        "title": "Settings",
         "menu_options": {
           "parcels": "Parcels",
           "settings": "Settings"
         }
       },
       "settings": {
-        "title": "Ampère options",
+        "title": "Settings",
         "sections": {
           "delivered": {
             "name": "Delivered parcels",

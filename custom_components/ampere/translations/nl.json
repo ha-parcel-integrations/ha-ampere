@@ -27,14 +27,14 @@
   "options": {
     "step": {
       "init": {
-        "title": "Ampère-opties",
+        "title": "Instellingen",
         "menu_options": {
           "parcels": "Pakketten",
           "settings": "Instellingen"
         }
       },
       "settings": {
-        "title": "Ampère-opties",
+        "title": "Instellingen",
         "sections": {
           "delivered": {
             "name": "Bezorgde pakketten",
@@ -53,14 +53,14 @@
               "include_history": "Statusgeschiedenis toevoegen"
             },
             "data_description": {
-              "include_history": "Voegt per pakket een history-attribuut toe met elke statusupdate (tijdstip, status, originele tekst). Standaard uit."
+              "include_history": "Voegt per pakket een geschiedenisattribuut toe met elke statusupdate (tijdstip, status, oorspronkelijke tekst). Standaard uit."
             }
           }
         },
         "data": {
           "delivered_filter_type": "Bezorgde pakketten: filteren op",
           "delivered_filter_amount": "Bezorgde pakketten: aantal",
-          "include_history": "Statusgeschiedenis opnemen"
+          "include_history": "Statusgeschiedenis toevoegen"
         }
       },
       "parcels": {
@@ -71,13 +71,13 @@
       }
     },
     "abort": {
-      "already_tracked": "Dat pakket wordt al gevolgd, in deze of een andere hub.",
+      "already_tracked": "Dit pakket wordt al gevolgd, in deze of een andere hub.",
       "parcels_updated": "Pakketten bijgewerkt."
     },
     "error": {
       "invalid_link": "Die trackinglink is geweigerd — mogelijk is hij onjuist, al gebruikt of verlopen. Open de oorspronkelijke e-mail en kopieer de link opnieuw.",
       "cannot_connect": "Kon Ampère niet bereiken. Probeer het opnieuw.",
-      "already_tracked": "Dat pakket wordt al gevolgd, in deze of een andere hub.",
+      "already_tracked": "Dit pakket wordt al gevolgd, in deze of een andere hub.",
       "tracking_link_required": "Voer de oorspronkelijke trackinglink van bol.com in om een nieuw pakket toe te voegen."
     }
   },
