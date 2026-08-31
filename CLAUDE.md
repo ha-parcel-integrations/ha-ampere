@@ -35,6 +35,11 @@ you act in one of these areas:
 
 ## Carrier-specific notes
 
+**No `awaiting_pickup` sensor, deliberately.** Ampère is home-delivery-only
+with no locker network, so `pickup`/`pickup_point` stay `False`/`None` in
+`parcels.py` by construction. Structural, not a gap — see
+`.github/CONVENTIONS.md`'s pickup-point convention.
+
 Ampère is bol.com's own last-mile delivery brand (NL only). Full wire
 mechanics live in the private `carrier-research/ampere/api/` — this section
 is only the *integration*-side decisions that follow from them.
