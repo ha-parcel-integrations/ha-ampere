@@ -17,6 +17,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.ampere.api import AmpReAuthError
 from custom_components.ampere.const import (
     CONF_BARCODE,
+    CONF_COOKIE,
     CONF_DELIVERED_FILTER_AMOUNT,
     CONF_DELIVERED_FILTER_TYPE,
     CONF_PARCEL_TOKEN,
@@ -61,9 +62,17 @@ def _entry() -> MockConfigEntry:
 
 
 def _client(parcels: list[dict] | None = None, *, token: str = PARCEL_TOKEN) -> AsyncMock:
-    """A fake AmpReApiClient — a plain list return or a side_effect callable."""
+    """A fake AmpReApiClient — a plain list return or a side_effect callable.
+
+    ``async_reexchange`` defaults to failing the same way a genuinely dead
+    session's re-exchange would — tests exercising auto-recovery override
+    this explicitly; every other test that puts an ``AmpReAuthError`` on
+    ``async_get_parcels`` keeps meaning "and it's unrecoverable" without
+    having to say so itself.
+    """
     client = AsyncMock()
     client.parcel_token = token
+    client.async_reexchange.side_effect = AmpReAuthError("HTTP 401")
     if parcels is not None:
         client.async_get_parcels.return_value = parcels
     return client
@@ -119,7 +128,7 @@ async def test_update_handles_no_parcels(hass):
 
 
 async def test_expired_session_triggers_reauth(hass):
-    """An expired session must start reauth, not retry forever."""
+    """An unrecoverable expired session must start reauth, not retry forever."""
     entry = _entry()
     entry.add_to_hass(hass)
     client = _client(token=PARCEL_TOKEN)
@@ -130,6 +139,62 @@ async def test_expired_session_triggers_reauth(hass):
         await coordinator._async_update_data()
 
     assert coordinator.failed_parcel_token == PARCEL_TOKEN
+    # The failed re-exchange must not have touched the stored credential.
+    assert entry.data[CONF_PARCELS][0][CONF_PARCEL_TOKEN] == PARCEL_TOKEN
+
+
+async def test_expired_session_recovers_silently_via_stored_link(hass):
+    """A dead session is re-exchanged automatically — no reauth needed.
+
+    Mirrors what config_flow.py's reauth_confirm does manually, just
+    triggered by the coordinator itself before ever bothering the user.
+    """
+    entry = _entry()
+    entry.add_to_hass(hass)
+    client = _client(token=PARCEL_TOKEN)
+    client.async_get_parcels.side_effect = [
+        AmpReAuthError("HTTP 401"),
+        [out_for_delivery_sample()],
+    ]
+
+    async def _reexchange() -> str:
+        client.parcel_token = "new-token"
+        client.cookie = "new-cookie"
+        return "new-token"
+
+    client.async_reexchange.side_effect = _reexchange
+    coordinator = AmpReCoordinator(hass, [client], entry)
+
+    data = await coordinator._async_update_data()
+
+    assert [parcel["barcode"] for parcel in data] == [BARCODE]
+    assert coordinator.failed_parcel_token is None
+    stored = entry.data[CONF_PARCELS][0]
+    assert stored[CONF_PARCEL_TOKEN] == "new-token"
+    assert stored[CONF_COOKIE] == "new-cookie"
+
+
+async def test_recovery_succeeds_but_retry_still_fails_targets_new_token(hass):
+    """If re-exchange succeeds but the retried fetch still fails, reauth
+    must target the *new* token — entry.data was already moved onto it."""
+    entry = _entry()
+    entry.add_to_hass(hass)
+    client = _client(token=PARCEL_TOKEN)
+    client.async_get_parcels.side_effect = AmpReAuthError("HTTP 401")
+
+    async def _reexchange() -> str:
+        client.parcel_token = "new-token"
+        client.cookie = "new-cookie"
+        return "new-token"
+
+    client.async_reexchange.side_effect = _reexchange
+    coordinator = AmpReCoordinator(hass, [client], entry)
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
+
+    assert coordinator.failed_parcel_token == "new-token"
+    assert entry.data[CONF_PARCELS][0][CONF_PARCEL_TOKEN] == "new-token"
 
 
 async def test_one_dead_session_does_not_lose_the_others_this_cycle(hass):

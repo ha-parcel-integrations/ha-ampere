@@ -190,7 +190,15 @@ class AmpReConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reauth(
         self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
-        """Start reauth after one of this hub's parcels' sessions died."""
+        """Start reauth after a parcel's session survived automatic recovery.
+
+        By the time HA ever reaches this flow, ``coordinator._async_update_data``
+        has already tried (and failed) to silently re-exchange the affected
+        parcel's own stored link itself (see ``AmpReApiClient.async_reexchange``)
+        — a plain expired *session* never gets here at all any more. This
+        flow only fires when that automatic re-exchange itself failed, i.e.
+        the *link* is genuinely dead, not just the cookie.
+        """
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
@@ -200,16 +208,23 @@ class AmpReConfigFlow(ConfigFlow, domain=DOMAIN):
 
         Every tracked parcel already carries the tracking link it was added
         with (``CONF_TRACKING_LINK``), confirmed live to be safely reusable —
-        replaying it re-authenticates rather than erroring. That also means
-        asking the user to paste it again cannot work as a *verification*
-        step: re-opening a mail link mints a fresh, unrelated parcel-token
-        for the same physical parcel every time (confirmed via matching
-        barcodes across opens a day apart), so a "does the resulting token
-        match what we expected" check could never pass on a legitimate
-        reauth — it always would have hit ``wrong_parcel``, forever. Reusing
-        the stored link ourselves sidesteps the check entirely: there is no
-        ambiguity to verify, because the link used is already tied to the
-        one parcel entry it came from.
+        replaying it re-authenticates rather than erroring. Reaching this
+        step at all means the coordinator already tried exactly that
+        automatically and it failed (see ``async_step_reauth`` above), so
+        this form mostly exists to pick *which* parcel and confirm the user
+        has seen it — resubmitting the same stored link rarely succeeds
+        where the automatic attempt just didn't, but costs nothing to try
+        and is still the only recovery path that doesn't require pasting a
+        fresh link in. That also means asking the user to paste it again
+        cannot work as a *verification* step: re-opening a mail link mints a
+        fresh, unrelated parcel-token for the same physical parcel every
+        time (confirmed via matching barcodes across opens a day apart), so
+        a "does the resulting token match what we expected" check could
+        never pass on a legitimate reauth — it always would have hit
+        ``wrong_parcel``, forever. Reusing the stored link ourselves
+        sidesteps the check entirely: there is no ambiguity to verify,
+        because the link used is already tied to the one parcel entry it
+        came from.
 
         Only *which* parcel needs confirming still needs working out, since
         one parcel's session can die while the rest of the hub is fine:

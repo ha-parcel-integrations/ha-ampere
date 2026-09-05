@@ -196,6 +196,50 @@ async def test_exchange_propagates_network_error():
 
 
 # ---------------------------------------------------------------------------
+# AmpReApiClient.async_reexchange — the coordinator's silent auto-recovery
+# ---------------------------------------------------------------------------
+
+
+async def test_reexchange_mutates_cookie_and_token_in_place():
+    session = MagicMock()
+    response = AsyncMock()
+    response.status = 200
+    response.url = URL(PARCEL_URL)
+    response.read = AsyncMock(return_value=b"")
+    ctx = MagicMock()
+    ctx.__aenter__ = AsyncMock(return_value=response)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    session.get = MagicMock(return_value=ctx)
+
+    morsel = MagicMock()
+    morsel.value = "fresh-cookie"
+    session.cookie_jar.filter_cookies = MagicMock(return_value={"tnt_sessions": morsel})
+
+    client = _client(session)
+    new_token = await client.async_reexchange()
+
+    assert new_token == PARCEL_TOKEN
+    assert client.parcel_token == PARCEL_TOKEN
+    assert client.cookie == "fresh-cookie"
+
+
+async def test_reexchange_raises_auth_error_when_the_link_itself_is_dead():
+    session = MagicMock()
+    response = AsyncMock()
+    response.status = 410
+    response.url = URL(TRACKING_LINK)
+    response.read = AsyncMock(return_value=b"")
+    ctx = MagicMock()
+    ctx.__aenter__ = AsyncMock(return_value=response)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    session.get = MagicMock(return_value=ctx)
+
+    client = _client(session)
+    with pytest.raises(AmpReAuthError):
+        await client.async_reexchange()
+
+
+# ---------------------------------------------------------------------------
 # async_get_parcels — the SSR scrape + best-effort /api/progress
 # ---------------------------------------------------------------------------
 
@@ -205,6 +249,13 @@ def test_client_exposes_its_parcel_token():
     among several, in a multi-parcel hub."""
     client = _client(MagicMock())
     assert client.parcel_token == PARCEL_TOKEN
+
+
+def test_client_exposes_its_cookie():
+    """Read by the coordinator after a successful async_reexchange to
+    persist the fresh credential onto entry.data."""
+    client = _client(MagicMock())
+    assert client.cookie == COOKIE
 
 
 async def test_get_parcels_scrapes_the_page():

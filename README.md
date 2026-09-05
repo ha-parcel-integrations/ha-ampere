@@ -37,7 +37,7 @@ Part of the [ha-parcel-integrations](https://github.com/ha-parcel-integrations) 
 - Canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), the carrier's own status text, and the expected delivery window
 - Summary sensors and a read-only **Deliveries** calendar entry, for parity with every other carrier in the family
 - Events + device triggers for no-code automations (parcel registered, status changed, delivered, delivery time changed)
-- Re-authentication support if the tracking session expires — the integration reconnects using the link the parcel was originally added with, nothing needs to be pasted in again
+- Automatic reconnection if the tracking session expires — the integration reconnects in the background using the link the parcel was originally added with; you're only asked to confirm if that link itself stops working
 - Manual refresh button and a diagnostic last-update sensor
 
 Track more than one bol.com order from the same hub: use **Track a parcel** in the hub's **Configure** menu for each order's own tracking link. Only one Ampère hub can exist at all — there's no "add the integration again."
@@ -172,7 +172,7 @@ logger:
 ## Troubleshooting
 
 - **Setup says the tracking link was rejected** — open the original bol.com e-mail and copy the link again; it may have been mistyped.
-- **The integration asks to reconnect** — the ~60-day tracking session expired. Confirming the reauthentication step is enough: the integration reuses the link the parcel was originally added with, nothing needs to be pasted in again. If that link has itself stopped working, remove the parcel and add it back with a fresh one from a new e-mail.
+- **The integration asks to reconnect** — the ~60-day tracking session expired *and* the automatic reconnection attempt (using the link the parcel was originally added with) also failed, so this means the link itself has stopped working. Confirming the step retries the same link once more, but if it keeps failing, remove the parcel and add it back with a fresh link from a new e-mail.
 - **A status logs "Unrecognised Ampère status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-ampere/issues/new) with the logged line so the mapping can be extended.
 
 ## Known limitations

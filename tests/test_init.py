@@ -96,9 +96,15 @@ async def test_expired_session_starts_reauth(hass):
     entry = _entry()
     entry.add_to_hass(hass)
 
-    with patch(
-        f"{CLIENT}.async_get_parcels",
-        new=AsyncMock(side_effect=AmpReAuthError("HTTP 401")),
+    with (
+        patch(
+            f"{CLIENT}.async_get_parcels",
+            new=AsyncMock(side_effect=AmpReAuthError("HTTP 401")),
+        ),
+        patch(
+            f"{CLIENT}.async_reexchange",
+            new=AsyncMock(side_effect=AmpReAuthError("HTTP 410")),
+        ),
     ):
         assert not await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()

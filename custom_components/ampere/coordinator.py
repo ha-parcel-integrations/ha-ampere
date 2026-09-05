@@ -9,6 +9,7 @@ import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 
+import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -16,9 +17,10 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from .api import AmpReApiClient, AmpReAuthError
+from .api import AmpReApiClient, AmpReApiError, AmpReAuthError
 from .const import (
     CONF_BARCODE,
+    CONF_COOKIE,
     CONF_INCLUDE_HISTORY,
     CONF_PARCEL_TOKEN,
     CONF_PARCELS,
@@ -229,15 +231,54 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
                 data={**self.config_entry.data, CONF_PARCELS: parcels},
             )
 
+    async def _async_recover_client(self, client: AmpReApiClient) -> bool:
+        """Try to silently heal one client whose session just died.
+
+        Re-exchanges the client's own stored tracking link in place
+        (:meth:`AmpReApiClient.async_reexchange` — confirmed safely
+        reusable, see api.py) and, on success, moves the matching
+        ``CONF_PARCELS`` entry from its old parcel-token onto the fresh
+        cookie/token pair — the same update ``config_flow.py``'s
+        ``reauth_confirm`` makes, just applied automatically instead of
+        behind a confirmed form submit. Returns whether recovery succeeded;
+        the caller still has to retry the actual parcel fetch itself.
+        """
+        old_token = client.parcel_token
+        try:
+            await client.async_reexchange()
+        except (AmpReAuthError, AmpReApiError, aiohttp.ClientError):
+            return False
+
+        parcels = [dict(item) for item in self.config_entry.data.get(CONF_PARCELS, [])]
+        for item in parcels:
+            if item.get(CONF_PARCEL_TOKEN) == old_token:
+                item[CONF_COOKIE] = client.cookie
+                item[CONF_PARCEL_TOKEN] = client.parcel_token
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, data={**self.config_entry.data, CONF_PARCELS: parcels}
+        )
+        _LOGGER.info(
+            "Ampère: a tracked parcel's session had expired — reconnected "
+            "automatically using its saved tracking link"
+        )
+        return True
+
     async def _async_update_data(self) -> list[dict]:
         """Fetch every tracked parcel's session and split active vs delivered.
 
         ``aiohttp.ClientError`` and ``AmpReApiError`` are deliberately not
         caught — ``DataUpdateCoordinator`` turns them into ``UpdateFailed``
-        with backoff. An expired session needs special handling, because
-        retrying it forever would never recover — but one dead session must
-        not blank out every other still-working parcel's data: every client
-        is tried, and only once all of them have run does a lone auth
+        with backoff. An expired *session* is recoverable on its own: the
+        client's stored tracking link is confirmed safely reusable (see
+        ``AmpReApiClient.async_reexchange``), so a dying cookie is silently
+        re-exchanged and retried once via :meth:`_async_recover_client`
+        before this ever surfaces as an auth failure — a user should not
+        have to click through a reauth prompt just to replay a link this
+        integration already has saved. Only when that re-exchange itself
+        fails (the *link*, not just the session, is dead) does the client
+        actually count as failing — and even then, one dead parcel must not
+        blank out every other still-working one's data: every client is
+        tried, and only once all of them have run does a lone unrecoverable
         failure turn into ``ConfigEntryAuthFailed`` (which discards this
         cycle's result entirely, per ``DataUpdateCoordinator``'s own
         contract — the *previous* cycle's data for every parcel, including
@@ -250,9 +291,28 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
         for client in self._clients:
             try:
                 raws.extend(await client.async_get_parcels())
+                continue
             except AmpReAuthError as err:
-                failing_tokens.append(client.parcel_token)
-                last_auth_error = err
+                # `as err` unbinds at the end of this except block (PEP
+                # 3110) — stash it in a plain variable so it survives past
+                # the recovery attempt below.
+                auth_error = err
+
+            old_token = client.parcel_token
+            if await self._async_recover_client(client):
+                try:
+                    raws.extend(await client.async_get_parcels())
+                    continue
+                except AmpReAuthError as err:
+                    # entry.data was already updated onto the new token by
+                    # _async_recover_client, so that's what a subsequent
+                    # reauth flow must target — not the now-stale old one.
+                    failing_tokens.append(client.parcel_token)
+                    last_auth_error = err
+                    continue
+
+            failing_tokens.append(old_token)
+            last_auth_error = auth_error
 
         # Cache every parcel that *did* answer, even if another one failed —
         # a partial failure must not stall barcode caching for the parcels

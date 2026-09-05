@@ -90,6 +90,24 @@ independently credentialed regardless of which hub it's filed under, so a
 second hub would have no purpose a "track another parcel" click doesn't
 already serve.
 
+**A dead session is recovered automatically, before the user ever sees a
+reauth prompt — added 2026-09-03.** A user reported the reauth flow feeling
+"heel irritant" when it recurred often, since every occurrence needed a
+manual click even though nothing the user could provide was actually
+missing — the stored link is confirmed safely reusable, so there was nothing
+to *ask* for. `coordinator._async_update_data` now calls
+`AmpReApiClient.async_reexchange()` (api.py) the moment a client raises
+`AmpReAuthError`, which re-runs the exchange against that client's own
+stored `CONF_TRACKING_LINK` and mutates the client's cookie/parcel-token in
+place; on success the coordinator moves the matching `CONF_PARCELS` entry
+onto the fresh pair and retries the fetch, all within the same poll — no
+`ConfigEntryAuthFailed`, no notification, nothing for the user to do.
+`ConfigEntryAuthFailed` (and thus the reauth flow below) now only fires when
+that automatic re-exchange itself fails, i.e. the *link*, not just the
+session, is genuinely dead. One dead session must still not blank out every
+other still-working parcel's data mid-recovery — see the docstring for why
+every client is tried before a real failure is raised.
+
 **Reauth targets one parcel, not the whole hub — and reuses its own stored
 link, resolved 2026-08-15.** Only one parcel's session may die while the
 rest of the hub is still fine, so reauth has to work out *which* tracked
