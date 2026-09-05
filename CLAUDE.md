@@ -151,10 +151,10 @@ never did while `delivered_at` was always unparseable.
 
 **`receiver` reads `receiver-name`, not a delivery-address scrape.** An
 earlier version aliased `receiver` to a `delivery-address-city` scrape that
-never matched anything (that `data-test-id` doesn't exist on the page — a
-guess from tracking.md's shorthand that was never verified against a real
-capture), so `receiver` was silently `None` regardless of stage. Fixed to
-read the real `receiver-name` field, found in the same replay.
+never matched anything (that `data-test-id` doesn't exist on the page — an
+earlier guess never verified against a real capture), so `receiver` was
+silently `None` regardless of stage. Fixed to read the real `receiver-name`
+field, found in the same replay.
 
 **Barcode is display-only, not a lookup key.** `normalize_parcel` falls
 back to the internal `parcel_token` when the `barcode-value` scrape comes
@@ -163,8 +163,8 @@ never silently drops a parcel that scraped everything else fine.
 
 **Scraping is regex-based, not an HTML parser.** `api.py`'s
 `_extract_first`/`_extract_all` match `data-test-id="..."` leaf elements
-directly — no new dependency for what tracking.md documented as simple
-label spans. Fragile to a frontend redesign by necessity; `_looks_like_error_state()`
+directly — no new dependency for what are simple label spans on the page.
+Fragile to a frontend redesign by necessity; `_looks_like_error_state()`
 and the shape-logging warnings (`_warn_unrecognised_page_shape`,
 `_warn_unrecognised_progress_shape`) exist precisely to catch that early
 via real user reports rather than a silent wrong parse.

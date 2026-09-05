@@ -44,13 +44,15 @@ KNOWN_CAPABILITIES = frozenset(
 # parcels.py's build_history().
 CAPABILITIES = frozenset({"delivery_window", "url", "history"})
 
-# Ampère's guest tracking session, live-confirmed 2026-08-12:
+# Ampère's guest tracking session, live-confirmed 2026-08-12. Redirect chain,
+# URL paths and cookie shape are documented in carrier-research/ampere/api/,
+# not here:
 #
 # * Auth is a one-time link exchange, not a login call — the emailed
-#   ``https://link.bol.com/t/<mail-token>?notificationId=...`` link 302s to
-#   ``/nl/key/<opaque-key-token>``, which 303s to ``PARCEL_URL`` while
-#   setting the ``tnt_sessions`` cookie (httponly, secure, ~60 day Max-Age).
-#   The cookie value and the resolved parcel-token are what polling replays.
+#   ``https://link.bol.com/t/<mail-token>?notificationId=...`` link
+#   eventually lands on ``PARCEL_URL``, setting the ``tnt_sessions`` cookie
+#   along the way. The cookie value and the resolved parcel-token are what
+#   polling replays.
 # * ``PARCEL_URL`` is the fully server-rendered tracking page — the *only*
 #   confirmed source of status text (a banner and a history log, worded
 #   differently for the same event; see parcels.py's _STATUS_MAP). A `200`
