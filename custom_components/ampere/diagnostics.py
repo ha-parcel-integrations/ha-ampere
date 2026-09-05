@@ -12,8 +12,7 @@ from . import AmpReConfigEntry
 # identifies a person, an address or a specific parcel. Over-redacting is
 # cheap; under-redacting leaks a user's home address into a GitHub thread.
 #
-# The field list is verbatim from carrier-research/api/ampere/tracking.md's
-# "Consuming this for a build" section:
+# The field list covers:
 #
 # * the delivery-address block (postcode + city + any street data),
 # * the barcode value,

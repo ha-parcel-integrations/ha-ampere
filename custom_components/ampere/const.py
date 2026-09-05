@@ -36,17 +36,15 @@ KNOWN_CAPABILITIES = frozenset(
 )
 
 # Ampère exposes no weight/dimensions and has no pickup-point concept (it is
-# a home-delivery-only last-mile brand, no locker/point network observed) —
-# see carrier-research/ampere.md. "history" WAS left out on the same reasoning
+# a home-delivery-only last-mile brand, no locker/point network observed).
+# "history" WAS left out on the same reasoning
 # ("no per-event timestamp anywhere captured") until 2026-08-13, when a real
 # delivered parcel showed `history-entry-time` populated — that reasoning
 # held only for the "aangemeld" stage this was first captured at. See
 # parcels.py's build_history().
 CAPABILITIES = frozenset({"delivery_window", "url", "history"})
 
-# Ampère's guest tracking session, live-confirmed 2026-08-12 (see
-# carrier-research/api/ampere/tracking.md, private repo, for the full
-# write-up):
+# Ampère's guest tracking session, live-confirmed 2026-08-12:
 #
 # * Auth is a one-time link exchange, not a login call — the emailed
 #   ``https://link.bol.com/t/<mail-token>?notificationId=...`` link 302s to
@@ -75,7 +73,7 @@ PROGRESS_URL = BASE_URL + "/api/progress?sid={parcel_token}"
 # httponly and scoped to this integration's own aiohttp session — never
 # present in the user's actual browser. Clicking PARCEL_URL from Home
 # Assistant would just show the "open the link again from your e-mail" error
-# state (tracking.md's auth-chain section). The mail link is the only thing
+# state. The mail link is the only thing
 # that actually opens the parcel in a real browser (re-running the redirect
 # chain and setting a fresh cookie there), so it — not PARCEL_URL — is what
 # populates the canonical ``url`` field. See api.py.
@@ -116,8 +114,7 @@ DEFAULT_DELIVERED_FILTER_TYPE = "days"
 DEFAULT_DELIVERED_FILTER_AMOUNT = 7
 
 # Dynamic, status-driven polling — unconditional, no user-facing interval
-# option. See carrier-research/dynamic-polling.md for the full algorithm and
-# reasoning.
+# option.
 #
 # Quiet window: no polling between these local hours except the two anchors
 # below, for overnight / end-of-day catch-up.

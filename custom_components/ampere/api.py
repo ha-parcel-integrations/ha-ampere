@@ -1,8 +1,7 @@
 """Ampère guest tracking-session API client.
 
-Auth model: a **one-time link exchange**, not a username/password login (see
-``carrier-research/api/ampere/tracking.md``, private repo, for the full wire
-write-up). The user's tracking link from bol.com's shipping e-mail is
+Auth model: a **one-time link exchange**, not a username/password login.
+The user's tracking link from bol.com's shipping e-mail is
 followed once — by :func:`async_exchange_tracking_link`, called from the
 config flow / options flow's add-parcel step / reauth flow, never from here
 — and the resulting ``tnt_sessions`` cookie value plus the resolved
@@ -253,6 +252,38 @@ class AmpReApiClient:
         succeed.
         """
         return self._parcel_token
+
+    @property
+    def cookie(self) -> str:
+        """The current ``tnt_sessions`` cookie value, post-recovery included.
+
+        Read by the coordinator after :meth:`async_reexchange` to persist
+        the fresh credential onto the matching ``CONF_PARCELS`` entry.
+        """
+        return self._cookie
+
+    async def async_reexchange(self) -> str:
+        """Silently redo this client's own tracking-link exchange in place.
+
+        Called by the coordinator the moment a session dies, before ever
+        raising :class:`AmpReAuthError` up to Home Assistant's reauth flow —
+        the tracking link is confirmed safely reusable (module docstring),
+        so a dead *session* alone is recoverable without interrupting
+        anyone. Mutates this client's cookie and parcel-token in place and
+        returns the new parcel-token, so the caller can move the matching
+        ``CONF_PARCELS`` entry (keyed by the *old* token) onto it.
+
+        Raises :class:`AmpReAuthError` (or :class:`AmpReApiError` /
+        ``aiohttp.ClientError``) when the *link itself*, not just the
+        session, is dead — that case has nothing left to retry
+        automatically and still needs a human via the normal reauth flow.
+        """
+        cookie, parcel_token = await async_exchange_tracking_link(
+            self._session, self._tracking_link
+        )
+        self._cookie = cookie
+        self._parcel_token = parcel_token
+        return parcel_token
 
     async def async_get_parcels(self) -> list[dict[str, Any]]:
         """Return this session's single tracked parcel as a raw payload dict.

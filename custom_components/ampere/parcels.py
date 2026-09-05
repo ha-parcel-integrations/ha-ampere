@@ -40,17 +40,16 @@ NEW_ISSUE_URL = (
     "?template=unrecognised_status.yml"
 )
 
-# Both status-text vocabularies the SSR page carries, per
-# carrier-research/ampere.md § Status vocabulary (all four stages confirmed
-# live end-to-end on one real parcel, 2026-08-12) — the page-top banner
-# (`status-text`) and the history-log (`history-entry-status`) are worded
-# *differently* for the same event at the "sorted" stage, so both strings are
-# mapped rather than picking one vocabulary and hoping the other agrees.
+# Both status-text vocabularies the SSR page carries (all four stages
+# confirmed live end-to-end on one real parcel, 2026-08-12) — the page-top
+# banner (`status-text`) and the history-log (`history-entry-status`) are
+# worded *differently* for the same event at the "sorted" stage, so both
+# strings are mapped rather than picking one vocabulary and hoping the
+# other agrees.
 #
 # normalize_parcel() prefers the newest history-log entry over the banner
-# when both are available (tracking.md: "the history entries are the more
-# complete record ... prefer those") — this map just has to cover whichever
-# one actually shows up.
+# when both are available — the history entries are the more complete
+# record — so this map just has to cover whichever one actually shows up.
 _STATUS_MAP: dict[str, ParcelStatus] = {
     "Pakket is aangemeld maar nog niet ontvangen door Ampère": ParcelStatus.REGISTERED,
     "Pakket is klaar voor bezorging": ParcelStatus.IN_TRANSIT,
@@ -223,11 +222,10 @@ def to_iso_timestamp(value: Any) -> str | None:
 def _current_status_text(raw: dict) -> str | None:
     """Return the status text normalize_parcel() should map — history over banner.
 
-    tracking.md: the history-log entries are the more complete record and
-    pair with a timestamp, so prefer the newest one (index 0, per
-    carrier-research/ampere.md's confirmed "newest entry first" ordering)
-    over the page-top banner. Falls back to the banner when the history log
-    could not be scraped at all.
+    The history-log entries are the more complete record and pair with a
+    timestamp, so prefer the newest one (index 0 — confirmed "newest entry
+    first" ordering) over the page-top banner. Falls back to the banner
+    when the history log could not be scraped at all.
     """
     history = raw.get("history_status_texts") or []
     if history:
@@ -238,8 +236,7 @@ def _current_status_text(raw: dict) -> str | None:
 def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
     """Return a carrier-agnostic parcel dict with the payload under ``raw``.
 
-    Ampère-specific notes (see carrier-research/ampere.md and
-    api/ampere/tracking.md, private repo, for the full write-up):
+    Ampère-specific notes:
 
     * ``status``/``raw_status`` read the history-log over the banner (see
       :func:`_current_status_text`) — the two are worded differently for the
