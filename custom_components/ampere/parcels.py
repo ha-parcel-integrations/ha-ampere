@@ -211,7 +211,7 @@ def to_iso_timestamp(value: Any) -> str | None:
     """Return an ISO 8601 string for an API timestamp, or ``None``.
 
     ``/api/progress``'s ``deliveryWindow.from``/``.to`` are ISO strings
-    already (tracking.md's captured example); this just guards against a
+    already (the captured example); this just guards against a
     missing/non-string value rather than doing any real conversion.
     """
     if value is None:

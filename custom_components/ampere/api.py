@@ -46,7 +46,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _PARCEL_TOKEN_RE = re.compile(r"/nl/parcel/([^/?#]+)")
 
-# The error page's own rendered data-test-ids (tracking.md's auth-chain
+# The error page's own rendered data-test-ids (the auth-chain
 # section) — NOT its text. An earlier version of this check searched the
 # body for the Dutch error copy ("open de link opnieuw", "kunnen deze
 # bezorging niet meer laten zien") as a substring, which was a false
@@ -60,7 +60,7 @@ _PARCEL_TOKEN_RE = re.compile(r"/nl/parcel/([^/?#]+)")
 _ERROR_STATE_TEST_IDS = ("error-title", "error-message")
 
 # Regex-based scrape, not an HTML parser: the confirmed fields are simple
-# leaf elements identified by a `data-test-id` attribute (tracking.md's SSR
+# leaf elements identified by a `data-test-id` attribute (the SSR
 # page table), and adding a parsing dependency for that is not worth it. This
 # is fragile to a frontend redesign by design/necessity — see the shape
 # warnings below, which exist precisely to catch that.
@@ -79,7 +79,7 @@ def _extract_all(html: str, test_id: str) -> list[str]:
     """Return every element's text content for a repeated ``data-test-id``.
 
     Used for ``history-entry-status``, which appears once per history-log
-    row, newest first (index 0) per tracking.md.
+    row, newest first (index 0).
     """
     return [
         text.strip()
@@ -338,7 +338,7 @@ class AmpReApiClient:
         if _looks_like_error_state(html):
             # A 200 that server-renders "open the link again from your
             # e-mail" — a semantic auth failure inside an HTTP success, not a
-            # bare wall (tracking.md's auth-chain section).
+            # bare wall (see the auth-chain section above).
             raise AmpReAuthError("session cookie rejected (in-body error state)")
         return html
 
