@@ -23,6 +23,11 @@ you act in one of these areas:
 | consider "fixing" a lint/pattern the skill flags (poll interval, inline client, sync requests) | *Deliberate skill divergences* — likely intentional, don't re-flag |
 | commit, bump, tag, release, or write release notes; add a feature without a test | *Workflow / Commits / Versioning / Testing* |
 
+**Structure, options flow, dynamic polling and module layout are suite-wide**
+and identical in every carrier — the authoritative spec is
+[`ha-carrier-template/scaffold/CLAUDE.md`](https://github.com/ha-parcel-integrations/ha-carrier-template/blob/main/scaffold/CLAUDE.md).
+This repo follows it exactly.
+
 **Suite-wide tripwires, kept inline on purpose:**
 - **First refresh in `__init__.py`, before `async_forward_entry_setups`** — from
   a forwarded platform HA can't catch `ConfigEntryNotReady` and half-sets-up the
@@ -189,58 +194,6 @@ via real user reports rather than a silent wrong parse.
 
 **API mechanics go in `carrier-research/ampere/api/`, NOT here and not in a
 local `docs/api/`.** See CONVENTIONS.md.
-
-## Options and reloads
-
-The options flow is one sectioned form (`data_entry_flow.section`); changes apply
-without a restart. Two models, **do not mix them**:
-- **Account-less carriers** (the default) apply changes live: an update listener
-  retunes `coordinator.update_interval` and calls `async_request_refresh()`, so
-  added/removed parcel sensors appear immediately.
-- **Account-based carriers** call `async_schedule_reload` on submit and register
-  **no** update listener. Combining a listener with a reload-on-update flow is
-  deprecated, an error in HA 2026.12+.
-
-## Dynamic polling
-
-There is no user-facing polling interval — this is a deliberate suite-wide
-choice, not a gap. `coordinator.py` recomputes `update_interval` at the end of
-every refresh:
-
-- **Quiet window:** no polling 00:00–06:00 local time, except two daily
-  anchors (~00:00 and ~06:00) for overnight / end-of-day catch-up.
-- **Tiers while polling:** *hot* (15 min) when a tracked, not-yet-delivered
-  parcel is `out_for_delivery` within an hour of its `planned_from` (or has no
-  `planned_from` at all); *mid* (45 min) for anything else still in flight.
-- **Full stop:** `update_interval = None` when nothing is tracked or every
-  tracked parcel is delivered. Resumes the moment a parcel is added back, via
-  the options-flow update listener above.
-- **Stagger:** a small, stable per-install offset (hash of the config entry
-  id) is added to every computed interval so installs don't all hit an anchor
-  or tier boundary at the same second.
-
-## Module layout
-
-| File | Carrier-specific? |
-|---|---|
-| `api.py` (HTTP client, error types) | **yes** |
-| `const.py` (domain, URLs, `ParcelStatus`, option keys) | partly (URLs) |
-| `parcels.py` (status map, `normalize_parcel`, history, sort, filters — pure, no I/O) | partly (`_STATUS_MAP`, `normalize_parcel`) |
-| `coordinator.py` (fetch, cache, event firing) | mostly not |
-| `config_flow.py` | partly (code validation) |
-| `sensor.py` / `button.py` / `calendar.py` / `device_trigger.py` | no |
-| `diagnostics.py` | partly (`TO_REDACT`) |
-| `services.py` (`track_parcel` / `untrack_parcel`, account-less only) | no |
-
-`parcels.py` is deliberately free of I/O and HA objects so the per-carrier part
-stays unit-testable without Home Assistant. Config: `ConfigEntry.runtime_data`
-(typed, no `hass.data`), `PARALLEL_UPDATES = 0`, coordinator takes
-`config_entry=entry`. `aiohttp.ClientError` is caught **per parcel** in the gather
-loop (one bad parcel doesn't fail the poll) but **not** around the whole update
-(the coordinator wraps that). Entities: `has_entity_name` + `translation_key`,
-`icons.json`, translated units, `_attr_attribution`, `_unrecorded_attributes` on
-anything with a parcel list or `raw`. Over-redact diagnostics — they get pasted
-into public issues.
 
 ## Running tests
 
