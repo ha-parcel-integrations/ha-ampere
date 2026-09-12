@@ -145,6 +145,15 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
         )
         self._clients = clients
         self.delivered: list[dict] = []
+        # parcel_token -> last successful raw payload, so a delivered parcel
+        # skipped from the fetch (below) still has something to normalize.
+        self._raw_cache: dict[str, dict] = {}
+        # Parcel tokens confirmed delivered on a prior refresh — excluded
+        # from the fetch this cycle since a delivered parcel's payload can
+        # never change again. Keyed on the client's current parcel_token
+        # (not the barcode, which may be unset). Lives for the integration's
+        # lifetime (resets on restart).
+        self._delivered_codes: set[str] = set()
         # barcode -> last seen ParcelStatus / (planned_from, planned_to).
         # ``None`` on the first refresh so events are suppressed for parcels
         # that already existed when the integration started — otherwise every
@@ -174,6 +183,11 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
     def current_tier_minutes(self) -> int | None:
         """Tier minutes computed on the last refresh (diagnostics only)."""
         return self._current_tier_minutes
+
+    @property
+    def delivered_codes(self) -> set[str]:
+        """Parcel tokens currently skipped from the fetch (diagnostics only)."""
+        return self._delivered_codes
 
     def _device_id(self) -> str | None:
         """Resolve (and cache) this entry's device id for event payloads."""
@@ -285,12 +299,28 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
         the still-good ones, stays visible and un-stale until reauth fixes
         the broken one).
         """
+        # A delivered parcel's payload can never change again, so its session
+        # is skipped from the fetch this cycle — not from ``self._clients``,
+        # which stays untouched until the user removes it by hand.
+        tracked_tokens = {client.parcel_token for client in self._clients}
+        self._raw_cache = {
+            token: raw for token, raw in self._raw_cache.items() if token in tracked_tokens
+        }
+        self._delivered_codes &= tracked_tokens
+        clients_to_fetch = [
+            client for client in self._clients
+            if client.parcel_token not in self._delivered_codes
+        ]
+
         raws: list[dict] = []
         failing_tokens: list[str] = []
         last_auth_error: AmpReAuthError | None = None
-        for client in self._clients:
+        for client in clients_to_fetch:
             try:
-                raws.extend(await client.async_get_parcels())
+                fetched = await client.async_get_parcels()
+                for raw in fetched:
+                    self._raw_cache[raw.get("parcel_token") or client.parcel_token] = raw
+                raws.extend(fetched)
                 continue
             except AmpReAuthError as err:
                 # `as err` unbinds at the end of this except block (PEP
@@ -301,7 +331,10 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
             old_token = client.parcel_token
             if await self._async_recover_client(client):
                 try:
-                    raws.extend(await client.async_get_parcels())
+                    fetched = await client.async_get_parcels()
+                    for raw in fetched:
+                        self._raw_cache[raw.get("parcel_token") or client.parcel_token] = raw
+                    raws.extend(fetched)
                     continue
                 except AmpReAuthError as err:
                     # entry.data was already updated onto the new token by
@@ -337,12 +370,31 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
                 "Ampère session expired for one or more tracked parcels"
             ) from last_auth_error
 
+        # Parcels skipped from the fetch above (already confirmed delivered)
+        # — re-add their cached payload so the delivered sensor keeps its
+        # data until the retention filter drops it.
+        for token in self._delivered_codes:
+            cached = self._raw_cache.get(token)
+            if cached is not None:
+                raws.append(cached)
+
         include_history = self._include_history
         normalized = [
             normalize_parcel(raw, include_history=include_history) for raw in raws
         ]
         active = [parcel for parcel in normalized if not parcel["delivered"]]
         delivered = [parcel for parcel in normalized if parcel["delivered"]]
+        # Rebuilt fresh from this cycle's data — a parcel whose payload just
+        # flipped to delivered is skipped starting next cycle; one that
+        # somehow un-delivers (should not happen, but the fetch list must
+        # never permanently drop a token) rejoins it automatically.
+        self._delivered_codes = {
+            token
+            for token, parcel in zip(
+                (raw.get("parcel_token") for raw in raws), normalized
+            )
+            if parcel["delivered"] and token
+        }
 
         self.delivered = apply_delivered_filter(
             sort_parcels_by_ts(delivered, "delivered_at", descending=True),

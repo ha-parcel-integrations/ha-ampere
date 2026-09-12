@@ -119,6 +119,50 @@ async def test_update_merges_multiple_clients(hass):
     }
 
 
+async def test_delivered_code_skipped_from_fetch(hass):
+    """A delivered parcel's client stops being polled from the next cycle on."""
+    entry = _entry()
+    entry.add_to_hass(hass)
+    client_active = _client([out_for_delivery_sample()], token="token-a")
+    client_delivered = _client(
+        [delivered_sample(barcode="AMPBFSD00999999999", parcel_token="token-b")],
+        token="token-b",
+    )
+    coordinator = AmpReCoordinator(hass, [client_active, client_delivered], entry)
+
+    await coordinator._async_update_data()
+    assert client_active.async_get_parcels.await_count == 1
+    assert client_delivered.async_get_parcels.await_count == 1
+    assert coordinator.delivered_codes == {"token-b"}
+
+    client_active.async_get_parcels.reset_mock()
+    client_delivered.async_get_parcels.reset_mock()
+    data = await coordinator._async_update_data()
+
+    # Only the still-active client's session is fetched.
+    assert client_active.async_get_parcels.await_count == 1
+    assert client_delivered.async_get_parcels.await_count == 0
+    assert any(
+        p["barcode"] == "AMPBFSD00999999999" for p in coordinator.delivered
+    )
+    assert data[0]["barcode"] == BARCODE
+
+
+async def test_delivered_code_forgotten_when_untracked(hass):
+    """Dropping a delivered parcel's client removes it from the skip set too."""
+    entry = _entry()
+    entry.add_to_hass(hass)
+    client = _client([delivered_sample(parcel_token="token-a")], token="token-a")
+    coordinator = AmpReCoordinator(hass, [client], entry)
+
+    await coordinator._async_update_data()
+    assert coordinator.delivered_codes == {"token-a"}
+
+    coordinator._clients = []
+    await coordinator._async_update_data()
+    assert coordinator.delivered_codes == set()
+
+
 async def test_update_handles_no_parcels(hass):
     entry = _entry()
     entry.add_to_hass(hass)

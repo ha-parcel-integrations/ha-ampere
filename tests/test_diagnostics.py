@@ -26,6 +26,7 @@ async def test_diagnostics_redacts_and_counts(hass):
         }
     ]
     entry.runtime_data.coordinator.delivered = []
+    entry.runtime_data.coordinator.delivered_codes = set()
     entry.runtime_data.coordinator.current_tier_minutes = 15
     entry.runtime_data.coordinator.update_interval = timedelta(minutes=15)
 
@@ -35,7 +36,11 @@ async def test_diagnostics_redacts_and_counts(hass):
         "current_tier_minutes": 15,
         "update_interval_seconds": 900.0,
     }
-    assert result["counts"] == {"incoming_active": 1, "delivered": 0}
+    assert result["counts"] == {
+        "incoming_active": 1,
+        "delivered": 0,
+        "skipped_from_fetch": 0,
+    }
     # barcode, address and the internal parcel-token are redacted, at every
     # nesting level — including inside the raw payload.
     assert result["incoming"][0]["barcode"] == "**REDACTED**"
