@@ -9,7 +9,7 @@
 
 A custom Home Assistant integration that tracks parcels delivered by **Ampère**, bol.com's own last-mile delivery brand in the Netherlands. There is no Ampère account to log into — adding the integration creates a single hub with nothing to track yet; each parcel is then added from that hub's **Configure** menu by pasting its own tracking link from bol.com's shipping-confirmation e-mail, once per parcel.
 
-Part of the [ha-parcel-integrations](https://github.com/ha-parcel-integrations) family: it publishes the same canonical parcel format, statuses and events as the other carrier integrations, so it plugs straight into the [Parcel Aggregator](https://github.com/ha-parcel-integrations/ha-parcel-aggregator) and cross-carrier automations.
+Part of the [ha-parcel-integrations](https://ha-parcel-integrations.io) family: it publishes the same canonical parcel format, statuses and events as the other carrier integrations, so it plugs straight into the [Parcel Aggregator](https://github.com/ha-parcel-integrations/ha-parcel-aggregator) and cross-carrier automations.
 
 ## Contents
 
@@ -184,13 +184,13 @@ If your Home Assistant log shows a warning asking for a diagnostics report — a
 
 ## Related integrations
 
-This integration is part of [**ha-parcel-integrations**](https://github.com/ha-parcel-integrations) — a family of
+This integration is part of [**ha-parcel-integrations**](https://ha-parcel-integrations.io) — a family of
 parcel-carrier integrations that all publish the same canonical parcel format,
 statuses and events.
 
 - [**Parcel Aggregator**](https://github.com/ha-parcel-integrations/ha-parcel-aggregator) rolls every installed carrier
   up into one set of sensors.
-- Browse [the organisation](https://github.com/ha-parcel-integrations) for the current list of supported carriers.
+- Browse [the organisation](https://ha-parcel-integrations.io) for the current list of supported carriers.
 
 ## Disclaimer
 
