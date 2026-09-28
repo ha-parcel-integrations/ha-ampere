@@ -2,7 +2,7 @@
   "domain": "ampere",
   "name": "Amp\u00e8re",
   "codeowners": [
-    "@peternijssen"
+    "@peter-mdf"
   ],
   "config_flow": true,
   "documentation": "https://github.com/ha-parcel-integrations/ha-ampere",
