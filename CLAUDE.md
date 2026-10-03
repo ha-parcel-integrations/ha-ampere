@@ -81,11 +81,11 @@ has no shared account credential — each parcel needs its own one-time link
 exchange — but that only changes *how* a parcel gets added, not whether the
 hub itself needs one to exist. Every parcel, including the first, is added
 the same way:
-through the options flow's `add_parcel` step (a menu entry, since it's a real
-async step with its own errors, not a plain text field like GLS's) — there is
-no separate first-parcel code path to keep in sync with it.
+through the options flow's `parcels` step (the editable list of codes and
+links; a new link is exchanged for its credential on submit, with its own
+errors) — there is no separate first-parcel code path to keep in sync with it.
 `entry.data` is `{CONF_PARCELS: [{cookie, parcel_token, tracking_link}, ...]}`,
-a list, not a scalar pair. `remove_parcel` is the symmetric removal step.
+a list, not a scalar pair. Removing a parcel is the same `parcels` step: drop it from the list.
 Duplicate-checking (`_find_entry_tracking_parcel`) scans every Ampère entry of
 this domain rather than assuming the single one directly, so it stays correct
 without edits if `single_config_entry` is ever relaxed — but in practice there
@@ -140,7 +140,7 @@ design. Since the flow already holds each parcel's own link, there is
 nothing to verify — reusing it can't accidentally rebind a different
 parcel, so `wrong_parcel` is gone entirely, replaced by a `no_parcels` abort
 for the (only theoretically reachable) case where the target parcel was
-removed via `remove_parcel` while the reauth flow was still pending on it.
+removed through the `parcels` step while the reauth flow was still pending on it.
 A parcel whose *stored* link has itself gone stale has no recovery path
 here — remove and re-add it with a fresh link instead. **Do not
 "simplify" this back to whole-entry reauth** — that would force re-linking
