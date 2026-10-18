@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/ha-parcel-integrations/ha-ampere.svg)](https://github.com/ha-parcel-integrations/ha-ampere/releases)
 [![Downloads](https://img.shields.io/github/downloads/ha-parcel-integrations/ha-ampere/total.svg)](https://github.com/ha-parcel-integrations/ha-ampere/releases)
-[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > 💬 Questions or feedback? Join the discussion on the [Home Assistant community](https://community.home-assistant.io/t/packages-postnl-dhl-nl-dpd-and-gls-parcel-integration/112433/).
@@ -51,9 +51,9 @@ Track more than one bol.com order from the same hub: use **Track a parcel** in t
 
 ### HACS (recommended)
 
-1. In HACS, choose the three-dot menu → **Custom repositories**.
-2. Add `https://github.com/ha-parcel-integrations/ha-ampere` as an **Integration**.
-3. Install **Ampère** and restart Home Assistant.
+1. Open HACS and search for **Ampère**
+2. Install it
+3. Restart Home Assistant
 
 ### Manual
 
