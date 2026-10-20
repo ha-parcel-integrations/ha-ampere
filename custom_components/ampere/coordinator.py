@@ -124,6 +124,8 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
     real inbox with. See ``api.py``'s module docstring.
     """
 
+    config_entry: ConfigEntry
+
     def __init__(
         self,
         hass: HomeAssistant,
