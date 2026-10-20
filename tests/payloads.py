@@ -12,6 +12,7 @@ guest session from its own tracking-link exchange — so the ``barcode`` /
 to exercise the shared coordinator machinery the same way a genuinely
 multi-parcel account-based carrier's tests do.
 """
+
 from __future__ import annotations
 
 PARCEL_TOKEN = "abc123opaquetoken"
@@ -71,9 +72,7 @@ def _raw(
     }
 
 
-def registered_sample(
-    barcode: str = BARCODE, parcel_token: str = PARCEL_TOKEN
-) -> dict:
+def registered_sample(barcode: str = BARCODE, parcel_token: str = PARCEL_TOKEN) -> dict:
     """Announced but not yet received by Ampère — history only, no banner yet."""
     return _raw(
         banner_status_text=None,

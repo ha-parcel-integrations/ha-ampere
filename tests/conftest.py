@@ -1,14 +1,17 @@
 """pytest configuration for the Ampère test suite."""
+
 import sys
 
 import pytest
 from pytest_homeassistant_custom_component.plugins import hass  # noqa: F401
 
+from custom_components.ampere import parcels
+
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Make ``custom_components.ampere`` loadable from config-flow / setup tests."""
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)
@@ -20,11 +23,8 @@ def reset_one_shot_warnings():
     that also makes them leak across tests, so whether a warning fires
     would otherwise depend on test order.
     """
-    from custom_components.ampere import parcels
-
     parcels._unmapped_statuses_logged.clear()
     parcels._history_mismatch_warned = False
-    yield
 
 
 if sys.platform == "win32":
@@ -44,7 +44,7 @@ if sys.platform == "win32":
     # HA's aiohttp helper hardcodes aiohttp's AsyncResolver, whose aiodns
     # backend refuses the Proactor loop the suite runs on under Windows.
     # Swap in the threaded resolver for the tests — no test resolves DNS.
-    import homeassistant.helpers.aiohttp_client as _ha_aiohttp_client
     from aiohttp.resolver import ThreadedResolver
+    import homeassistant.helpers.aiohttp_client as _ha_aiohttp_client
 
     _ha_aiohttp_client.AsyncResolver = ThreadedResolver

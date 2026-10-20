@@ -3,11 +3,12 @@
 Fetching and event firing only — the parcel mapping lives in :mod:`.parcels`,
 shared verbatim with the account-less variant.
 """
+
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 import hashlib
 import logging
-from datetime import datetime, timedelta, timezone
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
@@ -57,10 +58,9 @@ def _next_anchor(now: datetime) -> datetime:
     )
     if now < six_today:
         return six_today
-    midnight_tomorrow = (now + timedelta(days=1)).replace(
+    return (now + timedelta(days=1)).replace(
         hour=QUIET_WINDOW_START_HOUR, minute=0, second=0, microsecond=0
     )
-    return midnight_tomorrow
 
 
 def _hottest_tier_minutes(active_parcels: list[dict], now: datetime) -> int | None:
@@ -159,9 +159,9 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
         # that already existed when the integration started — otherwise every
         # restart would flood users with "registered" notifications.
         self._known_state: dict[str, ParcelStatus] | None = None
-        self._known_delivery_times: (
-            dict[str, tuple[str | None, str | None]] | None
-        ) = None
+        self._known_delivery_times: dict[str, tuple[str | None, str | None]] | None = (
+            None
+        )
         # Cached device id, attached to every fired event so device-trigger
         # automations can filter to this account's device.
         self._cached_device_id: str | None = None
@@ -208,9 +208,7 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
     def _include_history(self) -> bool:
         """Whether the opt-in per-parcel history option is enabled."""
         return bool(
-            self.config_entry.options.get(
-                CONF_INCLUDE_HISTORY, DEFAULT_INCLUDE_HISTORY
-            )
+            self.config_entry.options.get(CONF_INCLUDE_HISTORY, DEFAULT_INCLUDE_HISTORY)
         )
 
     def _cache_barcodes(self, raws: list[dict]) -> None:
@@ -304,11 +302,14 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
         # which stays untouched until the user removes it by hand.
         tracked_tokens = {client.parcel_token for client in self._clients}
         self._raw_cache = {
-            token: raw for token, raw in self._raw_cache.items() if token in tracked_tokens
+            token: raw
+            for token, raw in self._raw_cache.items()
+            if token in tracked_tokens
         }
         self._delivered_codes &= tracked_tokens
         clients_to_fetch = [
-            client for client in self._clients
+            client
+            for client in self._clients
             if client.parcel_token not in self._delivered_codes
         ]
 
@@ -319,7 +320,9 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
             try:
                 fetched = await client.async_get_parcels()
                 for raw in fetched:
-                    self._raw_cache[raw.get("parcel_token") or client.parcel_token] = raw
+                    self._raw_cache[raw.get("parcel_token") or client.parcel_token] = (
+                        raw
+                    )
                 raws.extend(fetched)
                 continue
             except AmpReAuthError as err:
@@ -333,7 +336,9 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
                 try:
                     fetched = await client.async_get_parcels()
                     for raw in fetched:
-                        self._raw_cache[raw.get("parcel_token") or client.parcel_token] = raw
+                        self._raw_cache[
+                            raw.get("parcel_token") or client.parcel_token
+                        ] = raw
                     raws.extend(fetched)
                     continue
                 except AmpReAuthError as err:
@@ -391,7 +396,7 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
         self._delivered_codes = {
             token
             for token, parcel in zip(
-                (raw.get("parcel_token") for raw in raws), normalized
+                (raw.get("parcel_token") for raw in raws), normalized, strict=True
             )
             if parcel["delivered"] and token
         }
@@ -417,7 +422,7 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
             if parcel.get("barcode")
         }
 
-        self.last_success_time = datetime.now(timezone.utc)
+        self.last_success_time = datetime.now(UTC)
 
         now = dt_util.now()
         self._current_tier_minutes = _hottest_tier_minutes(normalized_active, now)

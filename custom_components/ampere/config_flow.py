@@ -13,12 +13,11 @@ regardless of which hub it is filed under.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping
+import logging
 from typing import Any
 
 import aiohttp
-import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -28,12 +27,9 @@ from homeassistant.config_entries import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import voluptuous as vol
 
-from .api import (
-    AmpReApiError,
-    AmpReAuthError,
-    async_exchange_tracking_link,
-)
+from .api import AmpReApiError, AmpReAuthError, async_exchange_tracking_link
 from .const import (
     CONF_BARCODE,
     CONF_COOKIE,

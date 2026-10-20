@@ -1,4 +1,5 @@
 """Tests for the Ampère API client."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -32,10 +33,12 @@ def _page_html(
         history_times = ["Wo 12 aug 16:36"] * len(history)
     parts = ["<html><body>"]
     if status_text is not None:
-        parts.append(f'<div data-test-id="delivery-status-text">'
-                      f'<span data-test-id="status-text">{status_text}</span>'
-                      f"</div>")
-    for i, (text, time_text) in enumerate(zip(history, history_times)):
+        parts.append(
+            f'<div data-test-id="delivery-status-text">'
+            f'<span data-test-id="status-text">{status_text}</span>'
+            f"</div>"
+        )
+    for i, (text, time_text) in enumerate(zip(history, history_times, strict=False)):
         parts.append(
             f'<div data-test-id="history-entry-{i}">'
             f'<span data-test-id="history-entry-status">{text}</span>'
@@ -261,7 +264,9 @@ def test_client_exposes_its_cookie():
 async def test_get_parcels_scrapes_the_page():
     session = _session_returning(
         _response(200, text=_page_html()),
-        _response(200, json_body={"data": {"deliveryWindow": {"from": "a", "to": "b"}}}),
+        _response(
+            200, json_body={"data": {"deliveryWindow": {"from": "a", "to": "b"}}}
+        ),
     )
     parcels = await _client(session).async_get_parcels()
     assert len(parcels) == 1
@@ -283,7 +288,10 @@ async def test_get_parcels_reads_multiple_history_entries_newest_first():
         _response(
             200,
             text=_page_html(
-                history=["Pakket is gesorteerd", "Pakket is aangemeld maar nog niet ontvangen door Ampère"]
+                history=[
+                    "Pakket is gesorteerd",
+                    "Pakket is aangemeld maar nog niet ontvangen door Ampère",
+                ]
             ),
         ),
         _response(200, json_body={"data": {}}),
@@ -315,8 +323,7 @@ async def test_get_parcels_does_not_flag_a_real_success_page_as_error():
     session = _session_returning(
         _response(
             200,
-            text=_page_html(status_text="Pakket is bezorgd")
-            + "<script>window.__i18n={"
+            text=_page_html(status_text="Pakket is bezorgd") + "<script>window.__i18n={"
             '"sessionMissingTitle":"Open de link opnieuw uit je e-mail",'
             '"sessionMissingMessage":"We kunnen deze bezorging niet meer '
             'laten zien."}</script>',

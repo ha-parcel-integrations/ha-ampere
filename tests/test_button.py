@@ -1,4 +1,5 @@
 """Tests for the Ampère refresh button."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 from custom_components.ampere.button import AmpReRefreshButton

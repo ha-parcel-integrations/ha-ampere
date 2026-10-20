@@ -31,6 +31,7 @@ Contract the coordinator relies on:
 * ``aiohttp.ClientError`` propagates untouched — ``DataUpdateCoordinator``
   already wraps it into ``UpdateFailed``.
 """
+
 from __future__ import annotations
 
 import logging
@@ -58,6 +59,7 @@ _PARCEL_TOKEN_RE = re.compile(r"/nl/parcel/([^/?#]+)")
 # was — they are absent from a real success page and present only when the
 # error branch genuinely rendered.
 _ERROR_STATE_TEST_IDS = ("error-title", "error-message")
+
 
 # Regex-based scrape, not an HTML parser: the confirmed fields are simple
 # leaf elements identified by a `data-test-id` attribute (the SSR
@@ -134,7 +136,7 @@ _progress_shape_warned = False
 
 
 def _warn_unrecognised_page_shape(test_ids: set[str]) -> None:
-    global _page_shape_warned
+    global _page_shape_warned  # noqa: PLW0603 -- one-shot warning flag per process
     if _page_shape_warned:
         return
     _page_shape_warned = True
@@ -149,7 +151,7 @@ def _warn_unrecognised_page_shape(test_ids: set[str]) -> None:
 
 
 def _warn_unrecognised_progress_shape(keys: set[str]) -> None:
-    global _progress_shape_warned
+    global _progress_shape_warned  # noqa: PLW0603 -- one-shot warning flag per process
     if _progress_shape_warned:
         return
     _progress_shape_warned = True
@@ -179,16 +181,13 @@ async def async_exchange_tracking_link(
     used up, malformed, expired) and raises :class:`AmpReAuthError` so the
     config flow can show "invalid link" rather than "cannot connect".
     """
-    try:
-        async with session.get(tracking_link, allow_redirects=True) as response:
-            status = response.status
-            final_url = response.url
-            # The exchange is proven by the final URL shape and the cookie
-            # jar, not by this page's body — but the body must still be
-            # drained so the connection is released back to the pool.
-            await response.read()
-    except aiohttp.ClientError:
-        raise
+    async with session.get(tracking_link, allow_redirects=True) as response:
+        status = response.status
+        final_url = response.url
+        # The exchange is proven by the final URL shape and the cookie
+        # jar, not by this page's body — but the body must still be
+        # drained so the connection is released back to the pool.
+        await response.read()
 
     if status in (400, 401, 403, 404, 410):
         raise AmpReAuthError(f"HTTP {status} following tracking link")

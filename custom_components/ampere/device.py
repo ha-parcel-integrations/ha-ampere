@@ -5,6 +5,7 @@ One place, because sensors, the button and the calendar must all land on the
 ``single_config_entry`` means Ampère is single-hub, single-device (see
 :func:`build_device_info` below).
 """
+
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry

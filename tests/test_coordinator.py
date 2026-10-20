@@ -7,11 +7,13 @@ concatenates their results, same as a genuinely multi-parcel account-based
 carrier's coordinator would (via ``payloads.py``'s ``barcode`` overrides to
 tell the resulting parcels apart).
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ampere.api import AmpReAuthError
@@ -61,7 +63,9 @@ def _entry() -> MockConfigEntry:
     )
 
 
-def _client(parcels: list[dict] | None = None, *, token: str = PARCEL_TOKEN) -> AsyncMock:
+def _client(
+    parcels: list[dict] | None = None, *, token: str = PARCEL_TOKEN
+) -> AsyncMock:
     """A fake AmpReApiClient — a plain list return or a side_effect callable.
 
     ``async_reexchange`` defaults to failing the same way a genuinely dead
@@ -142,9 +146,7 @@ async def test_delivered_code_skipped_from_fetch(hass):
     # Only the still-active client's session is fetched.
     assert client_active.async_get_parcels.await_count == 1
     assert client_delivered.async_get_parcels.await_count == 0
-    assert any(
-        p["barcode"] == "AMPBFSD00999999999" for p in coordinator.delivered
-    )
+    assert any(p["barcode"] == "AMPBFSD00999999999" for p in coordinator.delivered)
     assert data[0]["barcode"] == BARCODE
 
 
@@ -347,9 +349,7 @@ async def test_cache_barcodes_skips_the_update_when_unchanged(hass):
     coordinator = AmpReCoordinator(hass, [client], entry)
     await coordinator._async_update_data()  # first poll writes the cache
 
-    with patch.object(
-        hass.config_entries, "async_update_entry"
-    ) as update_entry:
+    with patch.object(hass.config_entries, "async_update_entry") as update_entry:
         await coordinator._async_update_data()  # same barcode again
 
     update_entry.assert_not_called()
@@ -383,8 +383,6 @@ async def test_first_refresh_fires_nothing(hass):
 
 
 async def test_event_carries_device_id(hass):
-    from homeassistant.helpers import device_registry as dr
-
     entry = _entry()
     entry.add_to_hass(hass)
     device = dr.async_get(hass).async_get_or_create(
@@ -395,9 +393,7 @@ async def test_event_carries_device_id(hass):
     coordinator = AmpReCoordinator(hass, [client], entry)
 
     events = []
-    hass.bus.async_listen(
-        f"{DOMAIN}_parcel_status_changed", lambda e: events.append(e)
-    )
+    hass.bus.async_listen(f"{DOMAIN}_parcel_status_changed", lambda e: events.append(e))
 
     client.async_get_parcels.return_value = [sorted_sample()]
     await coordinator._async_update_data()
@@ -415,9 +411,7 @@ async def test_fires_status_changed_event(hass):
     coordinator = AmpReCoordinator(hass, [client], entry)
 
     events = []
-    hass.bus.async_listen(
-        f"{DOMAIN}_parcel_status_changed", lambda e: events.append(e)
-    )
+    hass.bus.async_listen(f"{DOMAIN}_parcel_status_changed", lambda e: events.append(e))
 
     client.async_get_parcels.return_value = [sorted_sample()]
     await coordinator._async_update_data()  # first refresh: suppressed
@@ -554,8 +548,6 @@ async def test_losing_the_eta_is_silent(hass):
 # ---------------------------------------------------------------------------
 # Dynamic polling (Section 2.1, barcode-based) — pure helpers
 # ---------------------------------------------------------------------------
-
-UTC = timezone.utc
 
 
 def _auto_entry_with(parcels: list[dict]) -> MockConfigEntry:

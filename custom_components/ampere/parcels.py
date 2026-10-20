@@ -6,11 +6,12 @@ carrier-specific mapping apart from the coordinator (nearly identical
 everywhere), and it makes the mapping trivially unit-testable without
 spinning up HA.
 """
+
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 import logging
 import re
-from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -69,8 +70,18 @@ _history_mismatch_warned = False
 # triple is enough to build a date and cheaper than validating consistency
 # against a name we'd otherwise discard.
 _DUTCH_MONTHS = {
-    "jan": 1, "feb": 2, "mrt": 3, "apr": 4, "mei": 5, "jun": 6,
-    "jul": 7, "aug": 8, "sep": 9, "okt": 10, "nov": 11, "dec": 12,
+    "jan": 1,
+    "feb": 2,
+    "mrt": 3,
+    "apr": 4,
+    "mei": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "okt": 10,
+    "nov": 11,
+    "dec": 12,
 }
 _HISTORY_TIME_RE = re.compile(
     r"^[A-Za-z]{2}\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{1,2}):(\d{2})$"
@@ -98,7 +109,7 @@ def _warn_history_mismatch(statuses: int, times: int) -> None:
     under us in a way the regex scrape didn't anticipate; entries beyond the
     shorter list are dropped rather than guessed at.
     """
-    global _history_mismatch_warned
+    global _history_mismatch_warned  # noqa: PLW0603 -- one-shot warning flag per process
     if _history_mismatch_warned:
         return
     _history_mismatch_warned = True
@@ -136,18 +147,22 @@ def parse_history_timestamp(
     month = _DUTCH_MONTHS.get(month_abbr.lower())
     if month is None:
         return None
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     now_local = now.astimezone(_AMSTERDAM)
     try:
         candidate = datetime(
-            now_local.year, month, int(day), int(hour), int(minute),
+            now_local.year,
+            month,
+            int(day),
+            int(hour),
+            int(minute),
             tzinfo=_AMSTERDAM,
         )
     except ValueError:
         return None
     if candidate > now_local + timedelta(days=1):
         candidate = candidate.replace(year=now_local.year - 1)
-    return candidate.astimezone(timezone.utc).isoformat()
+    return candidate.astimezone(UTC).isoformat()
 
 
 def build_history(raw: dict, *, max_events: int = HISTORY_MAX_EVENTS) -> list[dict]:
@@ -170,7 +185,7 @@ def build_history(raw: dict, *, max_events: int = HISTORY_MAX_EVENTS) -> list[di
             "status": map_parcel_status(status_text),
             "raw_status": status_text,
         }
-        for status_text, time_text in zip(statuses, times)
+        for status_text, time_text in zip(statuses, times, strict=False)
     ]
     return list(reversed(entries))[-max_events:]
 
@@ -199,11 +214,11 @@ def parse_iso(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value))
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed
 
 
@@ -334,14 +349,12 @@ def apply_delivered_filter(parcels: list[dict], entry: ConfigEntry) -> list[dict
     shows.
     """
     options = entry.options
-    filter_type = options.get(
-        CONF_DELIVERED_FILTER_TYPE, DEFAULT_DELIVERED_FILTER_TYPE
-    )
+    filter_type = options.get(CONF_DELIVERED_FILTER_TYPE, DEFAULT_DELIVERED_FILTER_TYPE)
     amount = int(
         options.get(CONF_DELIVERED_FILTER_AMOUNT, DEFAULT_DELIVERED_FILTER_AMOUNT)
     )
     if filter_type == "days":
-        cutoff = datetime.now(timezone.utc) - timedelta(days=amount)
+        cutoff = datetime.now(UTC) - timedelta(days=amount)
         return [
             parcel
             for parcel in parcels

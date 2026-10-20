@@ -4,7 +4,8 @@ These need no Home Assistant instance — the whole point of keeping
 ``parcels.py`` free of I/O is that the carrier-specific mapping (the part you
 rewrite per carrier) can be tested as plain functions.
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -45,7 +46,7 @@ from .payloads import (
 
 
 @pytest.mark.parametrize(
-    "text,expected",
+    ("text", "expected"),
     [
         (
             "Pakket is aangemeld maar nog niet ontvangen door Ampère",
@@ -88,7 +89,7 @@ def test_unmapped_status_warns_only_once(caplog):
 def test_parse_iso_handles_z_naive_and_garbage():
     assert parse_iso("2026-04-29T13:12:42Z").tzinfo is not None
     # A naive value is assumed UTC so mixed lists still sort.
-    assert parse_iso("2026-04-29T13:12:42").tzinfo == timezone.utc
+    assert parse_iso("2026-04-29T13:12:42").tzinfo == UTC
     assert parse_iso("not-a-date") is None
     assert parse_iso(None) is None
 
@@ -105,14 +106,14 @@ def test_to_iso_timestamp_passes_through_strings_and_none():
 
 def test_parse_history_timestamp_converts_amsterdam_wall_clock_to_utc():
     """CEST (UTC+2) in August — the page's time is local, not UTC."""
-    now = datetime(2026, 8, 13, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 13, 12, 0, tzinfo=UTC)
     parsed = parse_history_timestamp("Wo 12 aug 21:16", now=now)
     assert parsed == "2026-08-12T19:16:00+00:00"
 
 
 def test_parse_history_timestamp_rolls_back_a_year_if_implied_future():
     """No year on the page: assume current year, unless that's tomorrow+."""
-    now = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
     parsed = parse_history_timestamp("Ma 28 dec 10:00", now=now)
     assert parsed.startswith("2025-12-28")
 
@@ -355,7 +356,7 @@ def _entry(filter_type: str, amount: int) -> MockConfigEntry:
 
 
 def _delivered_pair() -> list[dict]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [
         {"barcode": "RECENT", "delivered_at": (now - timedelta(days=1)).isoformat()},
         {"barcode": "OLD", "delivered_at": (now - timedelta(days=30)).isoformat()},
