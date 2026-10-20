@@ -53,13 +53,21 @@ Track more than one bol.com order from the same hub: use **Track a parcel** in t
 
 1. Open HACS and search for **Ampère**
 2. Install it
-3. Restart Home Assistant
+3. Restart Home Assistant if HACS asks you to
+
+Or click the button below to open it directly in HACS:
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ha-parcel-integrations&repository=ha-ampere&category=integration)
 
 ### Manual
 
 Copy `custom_components/ampere` into your `config/custom_components/` folder and restart Home Assistant.
 
 ## Configuration
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=ampere)
+
+Or set it up by hand:
 
 1. Go to **Settings → Devices & Services → Add Integration → Ampère**. This creates the Ampère hub — there's nothing to fill in, since there's no account and adding a parcel needs its own step regardless.
 2. Open the hub's **Configure** menu and choose **Track a parcel**.
