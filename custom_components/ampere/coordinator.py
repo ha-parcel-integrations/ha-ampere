@@ -278,11 +278,26 @@ class AmpReCoordinator(DataUpdateCoordinator[list[dict]]):
         return True
 
     async def _async_update_data(self) -> list[dict]:
+        try:
+            return await self._async_poll()
+        except Exception:
+            # The base class keeps the last interval after a failure, which
+            # after an overnight poll is the whole quiet window.
+            now = dt_util.now()
+            tier = _hottest_tier_minutes(self.data or [], now)
+            self.update_interval = _next_update_interval(
+                now,
+                tier if tier is not None else MID_INTERVAL_MINUTES,
+                self.config_entry.entry_id,
+            )
+            raise
+
+    async def _async_poll(self) -> list[dict]:
         """Fetch every tracked parcel's session and split active vs delivered.
 
         ``aiohttp.ClientError`` and ``AmpReApiError`` are deliberately not
-        caught — ``DataUpdateCoordinator`` turns them into ``UpdateFailed``
-        with backoff. An expired *session* is recoverable on its own: the
+        caught — ``DataUpdateCoordinator`` turns them into a failed
+        update and the wrapper above reschedules it. An expired *session* is recoverable on its own: the
         client's stored tracking link is confirmed safely reusable (see
         ``AmpReApiClient.async_reexchange``), so a dying cookie is silently
         re-exchanged and retried once via :meth:`_async_recover_client`
