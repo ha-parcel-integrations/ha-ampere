@@ -314,3 +314,27 @@ async def test_options_settings_preserve_parcel_list(hass):
     )
     assert result["type"] == "create_entry"
     assert entry.data[CONF_PARCELS] == [parcel_credential()]
+
+
+async def test_options_flow_reloads_with_the_new_options(hass):
+    """The reload starts after the options are saved, not before."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_PARCELS: [parcel_credential()]})
+    entry.add_to_hass(hass)
+    seen = []
+    result = await _open_options_step(hass, entry, "settings")
+    with patch.object(
+        hass.config_entries,
+        "async_schedule_reload",
+        side_effect=lambda entry_id: seen.append(dict(entry.options)),
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_DELIVERED_FILTER_TYPE: "days",
+                CONF_DELIVERED_FILTER_AMOUNT: 7,
+                CONF_INCLUDE_HISTORY: True,
+            },
+        )
+
+    assert result["type"] == "create_entry"
+    assert seen == [result["data"]]

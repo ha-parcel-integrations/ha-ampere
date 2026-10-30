@@ -22,7 +22,7 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
-    OptionsFlow,
+    OptionsFlowWithReload,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
@@ -295,7 +295,7 @@ class AmpReConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-class AmpReOptionsFlowHandler(OptionsFlow):
+class AmpReOptionsFlowHandler(OptionsFlowWithReload):
     """Route parcel management and integration settings through two menus.
 
     A list item can be a known carrier barcode or an original tracking link.
@@ -381,7 +381,8 @@ class AmpReOptionsFlowHandler(OptionsFlow):
     ) -> ConfigFlowResult:
         """Show and handle non-parcel integration settings."""
         if user_input is not None:
-            self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
+            # OptionsFlowWithReload reloads once the new options are saved; a
+            # reload scheduled here would start before that, on the old ones.
             return self.async_create_entry(
                 title="",
                 data={
