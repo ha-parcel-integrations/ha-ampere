@@ -119,6 +119,7 @@ Standard HA removal applies: **Settings → Devices & Services → Ampère → �
 | `sensor.<device>_parcel_<barcode>` | The tracked parcel; state is the canonical status, attributes carry the full normalised parcel |
 | `sensor.<device>_next_delivery` | The expected delivery moment, while known |
 | `sensor.<device>_delivered_parcels` | The parcel once delivered (see the retention option) |
+| `calendar.<device>_deliveries` | Read-only calendar of expected deliveries, no extra API calls |
 | `sensor.<device>_last_successful_update` | Diagnostic: when Ampère was last polled successfully |
 
 `<device>` is the single Ampère hub device — every tracked parcel's sensors live on it, not one device per parcel. The parcel moves from its per-parcel sensor to the delivered sensor automatically once delivered.
@@ -182,7 +183,7 @@ logger:
 
 - **Setup says the tracking link was rejected** — open the original bol.com e-mail and copy the link again; it may have been mistyped.
 - **The integration asks to reconnect** — the ~60-day tracking session expired *and* the automatic reconnection attempt (using the link the parcel was originally added with) also failed, so this means the link itself has stopped working. Confirming the step retries the same link once more, but if it keeps failing, remove the parcel and add it back with a fresh link from a new e-mail.
-- **A status logs "Unrecognised Ampère status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-ampere/issues/new) with the logged line so the mapping can be extended.
+- **A status logs "Unrecognised Ampère status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-ampere/issues/new?template=unrecognised_status.yml) with the logged line so the mapping can be extended.
 
 ## Known limitations
 
