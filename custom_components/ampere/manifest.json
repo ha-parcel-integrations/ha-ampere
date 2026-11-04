@@ -1,6 +1,7 @@
 {
   "domain": "ampere",
   "name": "Amp\u00e8re",
+  "categories": ["productivity_information"],
   "codeowners": [
     "@peter-mdf"
   ],
