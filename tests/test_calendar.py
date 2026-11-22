@@ -1,6 +1,6 @@
 """Tests for the Ampère deliveries calendar."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
 
 from custom_components.ampere.calendar import AmpReDeliveriesCalendar
@@ -106,3 +106,38 @@ async def test_get_events_filters_by_range():
     end = datetime(2100, 1, 1, tzinfo=UTC)
     events = await cal.async_get_events(MagicMock(), start, end)
     assert {e.uid for e in events} == {"FUTURE"}
+
+
+def test_whole_day_window_is_all_day_event():
+    cal = _cal(
+        [
+            _parcel(
+                "A",
+                planned_from="2099-01-01T00:00:00+01:00",
+                planned_to="2099-01-01T23:59:59+01:00",
+            )
+        ]
+    )
+    event = cal._events()[0]
+    assert event.start == date(2099, 1, 1)
+    assert event.end == date(2099, 1, 2)
+    assert event.all_day
+    assert cal.event.uid == "A"
+
+
+async def test_get_events_includes_all_day_event():
+    cal = _cal(
+        [
+            _parcel(
+                "A",
+                planned_from="2099-01-01T00:00:00+01:00",
+                planned_to="2099-01-01T23:59:59+01:00",
+            )
+        ]
+    )
+    events = await cal.async_get_events(
+        MagicMock(),
+        datetime(2098, 12, 31, tzinfo=UTC),
+        datetime(2099, 1, 3, tzinfo=UTC),
+    )
+    assert [e.uid for e in events] == ["A"]

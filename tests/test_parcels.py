@@ -5,7 +5,7 @@ These need no Home Assistant instance — the whole point of keeping
 rewrite per carrier) can be tested as plain functions.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -25,6 +25,8 @@ from custom_components.ampere.parcels import (
     normalize_parcel,
     parse_history_timestamp,
     parse_iso,
+    planned_for_status,
+    planned_window,
     sort_parcels_by_ts,
     to_iso_timestamp,
 )
@@ -222,10 +224,10 @@ def test_normalize_registered_parcel_uses_history_when_banner_absent():
 
 
 def test_normalize_prefers_history_over_banner_text():
-    """tracking.md's decision: history-log wins when the two disagree.
+    """History-log wins when the two disagree.
 
-    The "sorted" stage is exactly the band-ordering trap the research
-    called out — banner says "klaar voor bezorging", history says
+    The "sorted" stage is exactly the band-ordering trap:
+    banner says "klaar voor bezorging", history says
     "gesorteerd" for the very same event, and both must map to
     IN_TRANSIT, but the newest *history* string is what raw_status reports.
     """
@@ -286,7 +288,7 @@ def test_normalize_delivered_at_none_when_no_history_times():
 
 
 def test_normalize_barcode_falls_back_to_parcel_token():
-    """ampere.md's open question: the barcode may not even be a lookup key,
+    """The barcode may not even be a lookup key,
     and is not guaranteed to scrape cleanly — but the coordinator keys its
     event firing on ``barcode``, so it must never come back empty while a
     parcel-token is known."""
@@ -379,3 +381,69 @@ def test_delivered_filter_keeps_unparseable_timestamp():
     always None (see test_normalize_delivered_parcel)."""
     parcels = [{"barcode": "WEIRD", "delivered_at": "nonsense"}]
     assert apply_delivered_filter(parcels, _entry("days", 7)) == parcels
+
+
+_ZONE = timezone(timedelta(hours=1))
+
+
+def test_planned_window_single_moment_ends_same_day():
+    assert planned_window("2099-03-05T10:00:00", None, zone=_ZONE) == (
+        "2099-03-05T10:00:00+01:00",
+        "2099-03-05T23:59:59+01:00",
+    )
+
+
+def test_planned_window_date_covers_whole_day():
+    assert planned_window(date(2099, 3, 5), None, zone=_ZONE) == (
+        "2099-03-05T00:00:00+01:00",
+        "2099-03-05T23:59:59+01:00",
+    )
+    assert planned_window("2099-03-05", "2099-03-07", zone=_ZONE) == (
+        "2099-03-05T00:00:00+01:00",
+        "2099-03-07T23:59:59+01:00",
+    )
+
+
+def test_planned_window_to_only_becomes_from_only():
+    assert planned_window(None, "2099-03-05T10:00:00", zone=_ZONE) == (
+        "2099-03-05T10:00:00+01:00",
+        "2099-03-05T23:59:59+01:00",
+    )
+
+
+def test_planned_window_keeps_aware_spelling_and_swaps_reversed():
+    assert planned_window(
+        "2099-03-05T14:00:00+01:00", "2099-03-05T09:00:00+01:00", zone=_ZONE
+    ) == ("2099-03-05T09:00:00+01:00", "2099-03-05T14:00:00+01:00")
+    assert (
+        planned_window(datetime(2099, 3, 5, 9, tzinfo=_ZONE), None, zone=_ZONE)[0]
+        == "2099-03-05T09:00:00+01:00"
+    )
+
+
+def test_planned_window_equal_values_are_one_moment():
+    assert planned_window("2099-03-05T23:59:59", "2099-03-05T23:59:59", zone=_ZONE) == (
+        "2099-03-05T23:59:59+01:00",
+        None,
+    )
+
+
+def test_planned_window_rejects_garbage():
+    assert planned_window(None, None, zone=_ZONE) == (None, None)
+    assert planned_window("nonsense", 42, zone=_ZONE) == (None, None)
+    assert planned_window("2099-13-45", None, zone=_ZONE) == (None, None)
+
+
+def test_planned_for_status_clears_window_at_destination():
+    window = ("2099-03-05T10:00:00+01:00", "2099-03-05T23:59:59+01:00")
+    for status in (
+        ParcelStatus.AT_PICKUP_POINT,
+        ParcelStatus.RETURNING,
+        ParcelStatus.DELIVERED,
+    ):
+        assert planned_for_status(status, *window) == (None, None)
+    assert planned_for_status(ParcelStatus.OUT_FOR_DELIVERY, *window) == window
+
+
+def test_parse_history_timestamp_rejects_impossible_date():
+    assert parse_history_timestamp("31 feb 10:00") is None

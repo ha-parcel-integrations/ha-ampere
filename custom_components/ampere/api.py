@@ -130,7 +130,7 @@ class AmpReAuthError(AmpReApiError):
 # One-shot shape-logging, pre-1.0 convention (CONVENTIONS.md § Pre-1.0
 # releases): reconstructed-from-prose scraping and an endpoint whose full
 # shape was never seen both need a WARNING the first time reality diverges
-# from what research captured, not a silent guess.
+# from what was captured, not a silent guess.
 _page_shape_warned = False
 _progress_shape_warned = False
 
@@ -315,7 +315,7 @@ class AmpReApiClient:
             "delivery_window": window,
             # The mail link, not PARCEL_URL — see const.py's comment on
             # CONF_TRACKING_LINK. Whether it is safely re-clickable is
-            # unconfirmed (ampere.md's Open questions); shipped anyway,
+            # unconfirmed; shipped anyway,
             # best-effort, since a link that might stop working on a second
             # click still beats one that is known not to work at all.
             "url": self._tracking_link,

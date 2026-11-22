@@ -7,7 +7,11 @@ from homeassistant.config_entries import SOURCE_USER
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ampere.api import AmpReApiError, AmpReAuthError
-from custom_components.ampere.config_flow import CONF_TRACKING_LINK, _parcel_list_value
+from custom_components.ampere.config_flow import (
+    CONF_TRACKING_LINK,
+    _label_for,
+    _parcel_list_value,
+)
 from custom_components.ampere.const import (
     CONF_BARCODE,
     CONF_COOKIE,
@@ -338,3 +342,57 @@ async def test_options_flow_reloads_with_the_new_options(hass):
 
     assert result["type"] == "create_entry"
     assert seen == [result["data"]]
+
+
+async def test_options_parcel_list_link_errors_and_duplicates(hass):
+    entry = _entry([])
+    entry.add_to_hass(hass)
+    for exc, error in (
+        (AmpReAuthError("no"), "invalid_link"),
+        (AmpReApiError("down"), "cannot_connect"),
+    ):
+        result = await _open_options_step(hass, entry, "parcels")
+        with patch(EXCHANGE, new=AsyncMock(side_effect=exc)):
+            result = await hass.config_entries.options.async_configure(
+                result["flow_id"], {"tracking_codes": [TRACKING_LINK]}
+            )
+        assert result["errors"] == {"base": error}
+        hass.config_entries.options.async_abort(result["flow_id"])
+
+
+async def test_options_parcel_list_rejects_link_tracked_by_another_entry(hass):
+    entry = _entry([])
+    entry.add_to_hass(hass)
+    other = _entry([PARCEL_TOKEN])
+    other.add_to_hass(hass)
+    result = await _open_options_step(hass, entry, "parcels")
+    with patch(EXCHANGE, new=AsyncMock(return_value=(COOKIE, PARCEL_TOKEN))):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"tracking_codes": [TRACKING_LINK]}
+        )
+    assert result["errors"] == {"base": "already_tracked"}
+
+
+async def test_options_parcel_list_skips_blanks_and_repeated_links(hass):
+    entry = _entry([])
+    entry.add_to_hass(hass)
+    result = await _open_options_step(hass, entry, "parcels")
+    with patch(EXCHANGE, new=AsyncMock(return_value=(COOKIE, PARCEL_TOKEN))):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"tracking_codes": ["  ", TRACKING_LINK, SECOND_LINK]}
+        )
+    assert result["reason"] == "parcels_updated"
+    assert entry.data[CONF_PARCELS] == [parcel_credential()]
+
+
+def test_label_for_uses_cache_then_coordinator_then_mask():
+    tok = "abcdefghijkl"
+    assert _label_for({CONF_PARCEL_TOKEN: tok, CONF_BARCODE: "AMP1"}, None) == (
+        "AMP1 (…ghijkl)"
+    )
+    coord = SimpleNamespace(
+        data=[{"barcode": "AMP2", "raw": {"parcel_token": tok}}], delivered=[]
+    )
+    assert _label_for({CONF_PARCEL_TOKEN: tok}, coord) == "AMP2 (…ghijkl)"
+    empty = SimpleNamespace(data=[], delivered=[])
+    assert _label_for({CONF_PARCEL_TOKEN: tok}, empty) == "parcel …ghijkl"

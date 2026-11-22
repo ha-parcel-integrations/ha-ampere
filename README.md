@@ -35,7 +35,7 @@ A custom Home Assistant integration that tracks parcels delivered by **Ampère**
 ## Features
 
 - Follows one Ampère (bol.com) parcel end to end: announced → sorted → out for delivery → delivered
-- Canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), the carrier's own status text, and the expected delivery window
+- Canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), the carrier's own status text, and the expected delivery window (a one-ended window ends at the end of that day in Dutch time; it is empty once the parcel is delivered)
 - Summary sensors and a read-only **Deliveries** calendar entry, for parity with every other carrier in the family
 - Events + device triggers for no-code automations (parcel registered, status changed, delivered, delivery time changed)
 - Automatic reconnection if the tracking session expires — the integration reconnects in the background using the link the parcel was originally added with; you're only asked to confirm if that link itself stops working

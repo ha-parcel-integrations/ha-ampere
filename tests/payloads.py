@@ -1,10 +1,8 @@
 """Sample Ampère raw parcel dicts shared by the test modules.
 
 These mirror the shape api.py's ``AmpReApiClient.async_get_parcels()`` scrapes
-off the SSR tracking page — see carrier-research/ampere.md's confirmed
-status-vocabulary table (all four stages captured live end-to-end on one
-real parcel, 2026-08-12) and api/ampere/tracking.md's SSR field table
-(private repo) for the source of every value below.
+off the SSR tracking page (all four stages captured live end-to-end on one
+real parcel, 2026-08-12).
 
 One Ampère *hub* (config entry) can track several parcels — each its own
 guest session from its own tracking-link exchange — so the ``barcode`` /
@@ -21,7 +19,7 @@ TRACKING_LINK = "https://link.bol.com/t/mailtoken?notificationId=1234"
 COOKIE = "cookie-value"
 RECEIVER_NAME = "Jane Doe"
 
-# Real captured format (tracking.md, live 2026-08-13): weekday abbreviation,
+# Real captured format (live 2026-08-13): weekday abbreviation,
 # day, Dutch 3-letter month, 24h time, no year. Oldest first here so each
 # sample's history arrays can just slice from the end backwards, matching
 # history_status_texts' own newest-first order below.

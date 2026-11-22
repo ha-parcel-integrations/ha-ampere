@@ -45,9 +45,12 @@ with no locker network, so `pickup`/`pickup_point` stay `False`/`None` in
 `parcels.py` by construction. Structural, not a gap — see
 `.github/CONVENTIONS.md`'s pickup-point convention.
 
-Ampère is bol.com's own last-mile delivery brand (NL only). Full wire
-mechanics live in the private `carrier-research/ampere/api/` — this section
-is only the *integration*-side decisions that follow from them.
+Ampère is bol.com's own last-mile delivery brand (NL only). This
+section is the *integration*-side decisions.
+
+**Divergence from the contract: `sender`.** The contract says no hard-coded
+fallback; here `sender` falls back to `bol.com` because every parcel comes in
+through a bol.com link.
 
 **Auth model: a one-time link exchange, not a login.** Setup itself asks
 nothing (see below) — it's *adding a parcel*, including the first, that asks
@@ -66,9 +69,8 @@ mail link is the only thing that actually opens the parcel in a real browser
 not `PARCEL_URL` — is what populates the canonical `url` field (`api.py`).
 The mail link is safely reusable — each open just re-authenticates, though it
 mints a fresh, unrelated parcel-token for the same physical parcel every time
-(confirmed live 2026-08-15, matching barcodes across opens a day apart) — see
-`ampere.md`'s Open questions and the reauth section below, which relies on
-this. Every poll sends the stored cookie explicitly as a **per-request**
+(confirmed live 2026-08-15, matching barcodes across opens a day apart) — see the
+reauth section below, which relies on this. Every poll sends the stored cookie explicitly as a **per-request**
 cookie (`cookies={"tnt_sessions": ...}`), not via the session's own cookie
 jar, so there is no dedicated per-entry cookie-jar session: the HA-managed
 shared session is reused across parcels safely.
@@ -192,9 +194,6 @@ and the shape-logging warnings (`_warn_unrecognised_page_shape`,
 `_warn_unrecognised_progress_shape`) exist precisely to catch that early
 via real user reports rather than a silent wrong parse.
 
-**API mechanics go in `carrier-research/ampere/api/`, NOT here and not in a
-local `docs/api/`.** See CONVENTIONS.md.
-
 ## Running tests
 
 ```
@@ -203,5 +202,14 @@ python -m pytest tests/ --cov=custom_components.ampere
 
 Coverage must stay **above 95%** (silver `test-coverage` rule). Run before
 committing. A code change updates the README + this file + `docs/` in the same
-commit; the API reference lives in the `api/` subfolder of this carrier's
-directory under the private `carrier-research/ampere/`, never in this repo.
+commit.
+
+**Delivery window and status fallback.** `planned_from`/`planned_to` go through
+`planned_window(..., zone=Europe/Amsterdam)` then `planned_for_status`, the
+suite's shared helpers (kept AST-identical to the template): a one-ended
+window gets an end-of-day `planned_to`, `planned_to` never exists without
+`planned_from`, and the window is empty for delivered, at-pickup-point and
+returning parcels. When the newest history text is unmapped, the status falls
+back to the newest mappable history entry (one-shot warning, `raw_status`
+stays the unmapped text) before `unknown`. `tests/test_contract.py` guards
+the shape.

@@ -311,7 +311,7 @@ async def test_get_parcels_raises_auth_error_on_401():
 
 async def test_get_parcels_raises_auth_error_on_in_body_error_state():
     """A 200 that server-renders the "open the link again" page is a
-    semantic auth failure, not an outage — tracking.md's auth-chain note."""
+    semantic auth failure, not an outage."""
     session = _session_returning(_response(200, text=_error_page_html()))
     with pytest.raises(AmpReAuthError):
         await _client(session).async_get_parcels()

@@ -9,7 +9,8 @@ spinning up HA.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from collections.abc import Iterable
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 import logging
 import re
 from typing import Any
@@ -30,8 +31,8 @@ _AMSTERDAM = ZoneInfo("Europe/Amsterdam")
 
 _LOGGER = logging.getLogger(__name__)
 
-# Where users report a status we do not map yet, or a payload shape research
-# never saw. Also reused by api.py's shape-logging warnings.
+# Where users report a status we do not map yet, or a payload shape
+# never seen. Also reused by api.py's shape-logging warnings.
 #
 # The ``?template=`` parameter matters: without it the link opens a blank
 # form, and the report comes back missing the version and the log line we
@@ -248,6 +249,108 @@ def _current_status_text(raw: dict) -> str | None:
     return raw.get("banner_status_text")
 
 
+def _moment(value: Any, zone: tzinfo) -> tuple[datetime, bool, str] | None:
+    """Return ``(aware datetime, date_only, text)`` for a carrier time, or ``None``.
+
+    A naive time or a bare date gets ``zone``; an aware time keeps its offset
+    and, when it came in as a string, its own spelling.
+    """
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, date):
+        moment = datetime.combine(value, time.min, tzinfo=zone)
+        return moment, True, moment.isoformat()
+    elif isinstance(value, str) and value:
+        try:
+            if len(value) == 10:
+                moment = datetime.combine(
+                    date.fromisoformat(value), time.min, tzinfo=zone
+                )
+                return moment, True, moment.isoformat()
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+        if parsed.tzinfo:
+            return parsed, False, value
+    else:
+        return None
+    moment = parsed if parsed.tzinfo else parsed.replace(tzinfo=zone)
+    return moment, False, moment.isoformat()
+
+
+def _end_of_day(moment: datetime, zone: tzinfo) -> datetime:
+    local = moment.astimezone(zone)
+    return datetime.combine(local.date(), time(23, 59, 59), tzinfo=zone)
+
+
+def planned_window(
+    start: Any, end: Any, *, zone: tzinfo
+) -> tuple[str | None, str | None]:
+    """Return ``(planned_from, planned_to)`` in the canonical window shape.
+
+    ``start`` and ``end`` are ISO strings, dates or datetimes, or ``None``; an
+    epoch number must be converted first (see ``to_iso_timestamp``). A window
+    keeps both ends. One moment with a time ends at ``23:59:59`` the same local
+    day; a date covers ``00:00:00`` to ``23:59:59``; two dates run from the
+    first day's start to the last day's end. Equal values are one moment,
+    reversed values are swapped, and ``planned_to`` is never set without
+    ``planned_from``. ``zone`` is the carrier's own zone: it dates naive times
+    and bare dates and decides which day a moment ends on, so a ``Z`` moment
+    still ends on the carrier's local day. When nothing is left of that day
+    after the moment, there is no ``planned_to``.
+    """
+    first = _moment(start, zone)
+    last = _moment(end, zone)
+    if first is None:
+        first, last = last, None
+    if first is None:
+        return None, None
+
+    def closing(moment: tuple[datetime, bool, str]) -> datetime:
+        return _end_of_day(moment[0], zone) if moment[1] else moment[0]
+
+    if last is not None and closing(last) < first[0]:
+        first, last = last, first
+    if last is not None and closing(last) == first[0]:
+        last = None
+
+    if last is None:
+        end_of_day = _end_of_day(first[0], zone)
+        return first[2], end_of_day.isoformat() if end_of_day > first[0] else None
+    return first[2], closing(last).isoformat() if last[1] else last[2]
+
+
+_NO_WINDOW_STATUSES = frozenset(
+    {ParcelStatus.AT_PICKUP_POINT, ParcelStatus.RETURNING, ParcelStatus.DELIVERED}
+)
+
+
+def planned_for_status(
+    status: ParcelStatus, planned_from: str | None, planned_to: str | None
+) -> tuple[str | None, str | None]:
+    """Empty the delivery window once the parcel is at its destination or done."""
+    if status in _NO_WINDOW_STATUSES:
+        return None, None
+    return planned_from, planned_to
+
+
+def is_pickup(
+    route_flag: bool | None,
+    status: ParcelStatus,
+    event_statuses: Iterable[ParcelStatus | None] = (),
+) -> bool:
+    """Whether the delivery route ends at a pickup point.
+
+    The carrier's own route flag wins; otherwise the parcel having reached
+    ``AT_PICKUP_POINT`` at any point counts, so the value survives collection.
+    """
+    if route_flag:
+        return True
+    return status is ParcelStatus.AT_PICKUP_POINT or any(
+        event is ParcelStatus.AT_PICKUP_POINT for event in event_statuses
+    )
+
+
 def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
     """Return a carrier-agnostic parcel dict with the payload under ``raw``.
 
@@ -260,8 +363,8 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
       `barcode-value` scrape comes back empty, so a barcode-less parcel
       still gets a stable identifier — the coordinator keys its
       registered/status-changed/delivered event firing on this field, and a
-      ``None`` here would silently drop every event for that parcel. Per
-      ampere.md's open questions, the barcode itself is display-only — it is
+      ``None`` here would silently drop every event for that parcel. The
+      barcode itself is display-only — it is
       not confirmed to be a lookup key at all, so nothing here treats it as
       one.
     * ``delivered_at``/``history`` come from ``history-entry-time``, parsed by
@@ -282,11 +385,28 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
     """
     status_text = _current_status_text(raw)
     status = map_parcel_status(status_text)
+    if (
+        status is ParcelStatus.UNKNOWN
+        and status_text
+        and status_text not in _STATUS_MAP
+    ):
+        # Unmapped newest entry (already warned): the newest mappable history
+        # entry still says where the parcel is.
+        for earlier in raw.get("history_status_texts") or []:
+            if earlier in _STATUS_MAP:
+                status = _STATUS_MAP[earlier]
+                break
     delivered = status is ParcelStatus.DELIVERED
 
     window = raw.get("delivery_window") or {}
-    planned_from = to_iso_timestamp(window.get("from"))
-    planned_to = to_iso_timestamp(window.get("to"))
+    planned_from, planned_to = planned_for_status(
+        status,
+        *planned_window(
+            to_iso_timestamp(window.get("from")),
+            to_iso_timestamp(window.get("to")),
+            zone=_AMSTERDAM,
+        ),
+    )
 
     barcode = raw.get("barcode") or raw.get("parcel_token")
 
@@ -306,8 +426,8 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
         "raw_status": status_text,
         "delivered": delivered,
         "delivered_at": delivered_at,
-        "planned_from": None if delivered else planned_from,
-        "planned_to": None if delivered else planned_to,
+        "planned_from": planned_from,
+        "planned_to": planned_to,
         "pickup": False,
         "pickup_point": None,
         "url": raw.get("url"),

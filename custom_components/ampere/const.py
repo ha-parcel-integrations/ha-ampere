@@ -46,8 +46,7 @@ KNOWN_CAPABILITIES = frozenset(
 CAPABILITIES = frozenset({"delivery_window", "url", "history"})
 
 # Ampère's guest tracking session, live-confirmed 2026-08-12. Redirect chain,
-# URL paths and cookie shape are documented in carrier-research/ampere/api/,
-# not here:
+# URL paths and cookie shape are not repeated here:
 #
 # * Auth is a one-time link exchange, not a login call — the emailed
 #   ``https://link.bol.com/t/<mail-token>?notificationId=...`` link
