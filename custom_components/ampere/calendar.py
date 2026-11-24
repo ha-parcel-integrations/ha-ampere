@@ -83,7 +83,13 @@ class AmpReDeliveriesCalendar(CoordinatorEntity[AmpReCoordinator], CalendarEntit
 
             barcode = parcel.get("barcode") or ""
             sender = parcel.get("sender")
-            summary = sender or (f"Parcel {barcode}" if barcode else "Ampère parcel")
+            # Contents say what is arriving; the sender is the fallback when the
+            # parcel has none.
+            summary = (
+                parcel.get("contents")
+                or sender
+                or (f"Parcel {barcode}" if barcode else "Ampère parcel")
+            )
             description_parts = [
                 f"Barcode: {barcode}" if barcode else None,
                 f"Status: {parcel.get('status')}" if parcel.get("status") else None,

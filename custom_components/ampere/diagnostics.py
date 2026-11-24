@@ -32,6 +32,7 @@ TO_REDACT = {
     "barcode",
     "sender",
     "receiver",
+    "contents",
     "url",
     # carrier payload fields (api.py's raw dict + entry.data)
     "parcel_token",

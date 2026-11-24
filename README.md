@@ -23,6 +23,7 @@ A custom Home Assistant integration that tracks parcels delivered by **Ampère**
 - [Sensors](#sensors)
 - [Parcel status reference](#parcel-status-reference)
 - [Events](#events)
+- [Services](#services)
 - [Examples](#examples)
 - [Debugging](#debugging)
 - [Troubleshooting](#troubleshooting)
@@ -39,6 +40,7 @@ A custom Home Assistant integration that tracks parcels delivered by **Ampère**
 - Summary sensors and a read-only **Deliveries** calendar entry, for parity with every other carrier in the family
 - Events + device triggers for no-code automations (parcel registered, status changed, delivered, delivery time changed)
 - Automatic reconnection if the tracking session expires — the integration reconnects in the background using the link the parcel was originally added with; you're only asked to confirm if that link itself stops working
+- A note on what is in a parcel, set with `ampere.update_contents`; it titles the calendar event and shows on the next-delivery sensor
 - Manual refresh button and a diagnostic last-update sensor
 
 Track more than one bol.com order from the same hub: use **Track a parcel** in the hub's **Configure** menu for each order's own tracking link. Only one Ampère hub can exist at all — there's no "add the integration again."
@@ -159,6 +161,16 @@ The integration fires these on the event bus (also available as device triggers 
 | `ampere_parcel_delivery_time_changed` | The expected delivery window changes |
 
 Every payload is the full normalised parcel plus the device's `device_id`. Events are suppressed on the first refresh after start-up.
+
+## Services
+
+| Service | Fields | Description |
+|---|---|---|
+| `ampere.update_contents` | `tracking_code`, `contents` | Set, replace or clear (empty text) a note on what is in a parcel |
+
+Parcels are added through the hub's **Configure** menu, so there is no service to track one.
+
+The `contents` text is stored locally, never sent to Ampère, and fills the parcel's `contents` field; it titles the parcel's calendar event and shows on the next-delivery sensor.
 
 ## Examples
 

@@ -18,6 +18,7 @@ async def test_diagnostics_redacts_and_counts(hass):
             "barcode": "AMPBFSD00123456789",
             "sender": "bol",
             "receiver": "1234 AB Amsterdam",
+            "contents": "Running shoes",
             "status": "out_for_delivery",
             "raw": {
                 "parcel_token": "abc123opaquetoken",
@@ -46,6 +47,7 @@ async def test_diagnostics_redacts_and_counts(hass):
     # nesting level — including inside the raw payload.
     assert result["incoming"][0]["barcode"] == "**REDACTED**"
     assert result["incoming"][0]["receiver"] == "**REDACTED**"
+    assert result["incoming"][0]["contents"] == "**REDACTED**"
     assert result["incoming"][0]["raw"]["parcel_token"] == "**REDACTED**"
     assert result["incoming"][0]["raw"]["barcode"] == "**REDACTED**"
     assert result["incoming"][0]["raw"]["address"] == "**REDACTED**"

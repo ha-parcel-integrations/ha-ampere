@@ -17,7 +17,9 @@ from .const import (
     CONF_TRACKING_LINK,
     PLATFORMS,
 )
+from .contents import ContentsStore
 from .coordinator import AmpReCoordinator
+from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +59,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpReConfigEntry) -> boo
         for parcel in entry.data.get(CONF_PARCELS, [])
     ]
     coordinator = AmpReCoordinator(hass, clients, entry)
+    await coordinator.contents_store.async_load()
 
     # Attach runtime_data *before* the first refresh, not after: if that
     # refresh is what raises ConfigEntryAuthFailed (a parcel added earlier
@@ -78,6 +81,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpReConfigEntry) -> boo
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    async_setup_services(hass)
+
     # No entry.add_update_listener: the options flow is an
     # OptionsFlowWithReload, which may not be combined with one.
     return True
@@ -89,4 +94,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: AmpReConfigEntry) -> bo
     No session to close: the shared HA-managed session's lifecycle is owned
     by Home Assistant core, not this entry.
     """
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        async_unload_services(hass)
+        return True
+    return False
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: AmpReConfigEntry) -> None:
+    """Delete the contents the user set for the removed entry."""
+    await ContentsStore(hass, entry.entry_id).async_remove()

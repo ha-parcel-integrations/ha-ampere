@@ -33,7 +33,15 @@ PLATFORMS = [Platform.BUTTON, Platform.CALENDAR, Platform.SENSOR]
 # subset of this — it exists so a typo in CAPABILITIES fails a test instead of
 # silently dropping a carrier off a table on the docs site.
 KNOWN_CAPABILITIES = frozenset(
-    {"weight", "dimensions", "delivery_window", "pickup_point", "url", "history"}
+    {
+        "weight",
+        "dimensions",
+        "delivery_window",
+        "pickup_point",
+        "url",
+        "history",
+        "contents",
+    }
 )
 
 # Ampère exposes no weight/dimensions and has no pickup-point concept (it is
@@ -143,6 +151,10 @@ STAGGER_MINUTES = 7
 # suite. Keep it off by default: it is a large attribute, and on carriers that
 # need a second call per parcel the cost is real.
 CONF_INCLUDE_HISTORY = "include_history"
+
+# The user-set parcel contents, and the tracking code the contents action is keyed on.
+CONF_CONTENTS = "contents"
+CONF_TRACKING_CODE = "tracking_code"
 DEFAULT_INCLUDE_HISTORY = False
 
 # Cap each parcel's history to the most recent N events so the attribute stays

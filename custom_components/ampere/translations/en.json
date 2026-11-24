@@ -66,8 +66,12 @@
       "parcels": {
         "title": "Manage parcels",
         "description": "Existing parcels appear by tracking code.",
-        "data": {"tracking_codes": "Tracking codes"},
-        "data_description": {"tracking_codes": "To add a parcel, paste its original tracking link from bol.com. Existing tracking codes can be removed from this list."}
+        "data": {
+          "tracking_codes": "Tracking codes"
+        },
+        "data_description": {
+          "tracking_codes": "To add a parcel, paste its original tracking link from bol.com. Existing tracking codes can be removed from this list."
+        }
       }
     },
     "abort": {
@@ -125,6 +129,22 @@
       },
       "parcel": {
         "name": "Parcel {barcode}"
+      }
+    }
+  },
+  "services": {
+    "update_contents": {
+      "name": "Update parcel contents",
+      "description": "Set what is in a parcel, in your own words, for a tracking code. An empty text clears it.",
+      "fields": {
+        "tracking_code": {
+          "name": "Tracking code",
+          "description": "The tracking code of the parcel."
+        },
+        "contents": {
+          "name": "Contents",
+          "description": "What is in the parcel, in your own words. An empty text clears it."
+        }
       }
     }
   }

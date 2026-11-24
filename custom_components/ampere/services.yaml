@@ -1,0 +1,12 @@
+update_contents:
+  fields:
+    tracking_code:
+      required: true
+      example: "AB123456789"
+      selector:
+        text:
+    contents:
+      required: false
+      example: "Running shoes"
+      selector:
+        text:
